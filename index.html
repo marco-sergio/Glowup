@@ -6264,10 +6264,7 @@ function AutoStartAnamnesi({lastApptId,doc,user,selService,selDate,selTime,onClo
   },[lastApptId,doc,user,selService,onClose]);
 
   useEffect(function(){
-    timerRef.current=setTimeout(function(){
-      onClose();
-      if(lastApptId) window._startAnamnesi(lastApptId,Object.assign({},doc,{service:selService}),user);
-    },1500);
+    // Non auto-avviare — l'utente clicca "Inizia subito"
     return function(){if(timerRef.current)clearTimeout(timerRef.current);};
   },[]);
 
@@ -6633,6 +6630,9 @@ function App(){
   if(!authChecked) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"var(--bg)"}}><div style={{textAlign:"center"}}><div style={{fontSize:28,marginBottom:12}}>✦</div><p style={{color:"var(--text3)",fontSize:12}}>Caricamento...</p></div></div>;
 
 
+  // Anamnesi ha sempre priorità massima
+  if(anamnesData) return <AnamnesPage apptId={anamnesData.apptId} doc={anamnesData.doc} user={anamnesData.user} onClose={function(){setAnamnesData(null);}}/>;
+
   // Doctor page route (hash-based)
   if(docPage){
     return <DoctorPage
@@ -6649,8 +6649,6 @@ function App(){
       {bookDoc&&<BookModal doc={bookDoc} onClose={()=>setBookDoc(null)} user={user}/>}
     </div>;
   }
-  // Mostra pagina anamnesi se attiva
-  if(anamnesData) return <AnamnesPage apptId={anamnesData.apptId} doc={anamnesData.doc} user={anamnesData.user} onClose={function(){setAnamnesData(null);}}/>;
 
   if(page==="login") return <div style={{display:"flex",flexDirection:"column",height:"100vh"}}><Header user={null} onLogout={logout} nav={setPage} cur="login"/><LoginPage onLogin={login} nav={setPage}/></div>;
   if(page==="register") return <div style={{display:"flex",flexDirection:"column",height:"100vh"}}><Header user={null} onLogout={logout} nav={setPage} cur="register"/><RegisterPage onLogin={login} nav={setPage}/></div>;
