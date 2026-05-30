@@ -150,7 +150,7 @@ function Header({user,onLogout,nav,cur}){
       </div>
       {user?(
         <div style={{display:"flex",alignItems:"center",gap:8}}>
-          {user.type==="patient"&&(
+          {user&&user.type!=="doctor"&&(
             <nav style={{display:"flex",gap:2,marginRight:4}}>
               {[["🔍 Cerca","marketplace"],["◷ Visite","appointments"],["◫ Messaggi","messages"],["💳 Pagamenti","payments"]].map(function(item){
                 return <button key={item[1]} onClick={function(){nav("dashboard");setTimeout(function(){window._patSection&&window._patSection(item[1]);},100);}}
@@ -6655,9 +6655,9 @@ function App(){
       onBack={closeDoctorPage}/>;
   }
 
-  if(!user&&["home","info","fordoctors"].includes(page)){
+  if(["home","info","fordoctors"].includes(page)){
     return <div className="layout">
-      <Header user={null} onLogout={logout} nav={setPage} cur={page}/>
+      <Header user={user} onLogout={logout} nav={setPage} cur={page}/>
       <main className="layout-main"><Marketplace uiState={ui} onBook={setBookDoc} onView={openDoctorPage}/></main>
       <aside className="layout-chat"><Gloria onUpdate={updUi} ctx="marketplace" doctors={[]} /></aside>
       {bookDoc&&<BookModal doc={bookDoc} onClose={()=>setBookDoc(null)} user={user}/>}
