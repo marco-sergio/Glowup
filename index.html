@@ -150,6 +150,16 @@ function Header({user,onLogout,nav,cur}){
       </div>
       {user?(
         <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {user.type==="patient"&&(
+            <nav style={{display:"flex",gap:2,marginRight:4}}>
+              {[["🔍 Cerca","marketplace"],["◷ Visite","appointments"],["◫ Messaggi","messages"],["💳 Pagamenti","payments"]].map(function(item){
+                return <button key={item[1]} onClick={function(){nav("dashboard");setTimeout(function(){window._patSection&&window._patSection(item[1]);},100);}}
+                  style={{padding:"5px 10px",borderRadius:"var(--radius)",border:"none",background:"transparent",color:"var(--text2)",fontSize:11,cursor:"pointer"}}
+                  onMouseEnter={function(e){e.currentTarget.style.background="var(--surface)";}}
+                  onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>{item[0]}</button>;
+              })}
+            </nav>
+          )}
           <Av ini={user.initials} sz={30} col={user.type==="doctor"?"#2dc889":"#c8a96e"}/>
           <div><p style={{fontSize:11,fontWeight:600,color:"var(--text)"}}>{user.name}</p><p style={{fontSize:9,color:"var(--text3)"}}>{user.type==="doctor"?"Medico":"Paziente"}</p></div>
           <button onClick={onLogout} style={{fontSize:10,color:"var(--text3)",background:"none",border:"none",padding:"4px 8px",borderRadius:"var(--radius)"}}>Esci</button>
@@ -5266,6 +5276,7 @@ function DocAnalytics(){
 
 function PatDashboard({user,nav,uiState,onUiUpdate,chatTarget,onChatOpen}){
   var _sectionState=useState("marketplace");var section=_sectionState[0];var setSection=_sectionState[1];
+  useEffect(function(){window._patSection=function(s){setSection(s);};return function(){window._patSection=null;};},[]);
   useEffect(function(){
     if(chatTarget&&chatTarget.doctorId){setSection("messages");}
   },[chatTarget]);
