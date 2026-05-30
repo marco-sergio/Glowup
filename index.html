@@ -143,8 +143,14 @@ function UserMenu({user,nav,onLogout}){
 
   var goTo=function(section){
     setOpen(false);
-    nav("dashboard");
-    setTimeout(function(){window._patSection&&window._patSection(section);},150);
+    if(window._patSection){
+      // Già nel dashboard - cambia sezione direttamente
+      window._patSection(section);
+    } else {
+      // Naviga al dashboard poi cambia sezione
+      nav("dashboard");
+      setTimeout(function(){window._patSection&&window._patSection(section);},200);
+    }
   };
 
   // Close on outside click
@@ -5381,8 +5387,13 @@ function PatDashboard({user,nav,uiState,onUiUpdate,chatTarget,onChatOpen}){
           <span style={{fontSize:10,fontWeight:700,color:"var(--gold-dim)",letterSpacing:"0.06em"}}>GLORIA ATTIVA</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <Av ini={user.initials} sz={30} col="#c8a96e"/>
-          <div><p style={{fontSize:11,fontWeight:600,color:"var(--text)"}}>{user.name}</p><p style={{fontSize:9,color:"var(--text3)"}}>Paziente</p></div>
+          <button onClick={function(){setSection("profile");}} style={{display:"flex",alignItems:"center",gap:8,background:"rgba(200,169,110,0.08)",border:"1px solid rgba(200,169,110,0.2)",borderRadius:"var(--radius-lg)",padding:"5px 12px 5px 6px",cursor:"pointer"}}>
+            <Av ini={user.initials} sz={28} col="#c8a96e"/>
+            <div style={{textAlign:"left"}}>
+              <p style={{fontSize:11,fontWeight:700,color:"var(--text)",lineHeight:1.3}}>{user.name}</p>
+              <p style={{fontSize:9,color:"var(--text3)"}}>Paziente</p>
+            </div>
+          </button>
           <button onClick={()=>window._logout()} style={{fontSize:10,color:"var(--text3)",background:"none",border:"none",padding:"4px 8px",borderRadius:"var(--radius)"}}>Esci</button>
         </div>
       </header>
