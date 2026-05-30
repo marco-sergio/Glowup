@@ -128,6 +128,91 @@ function Stars({r}){return <span style={{fontSize:11,color:"var(--gold)"}}>{"★
 function Card({children,style={}}){return <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"1.25rem",...style}}>{children}</div>;}
 function SecTitle({title,sub}){return <div style={{marginBottom:"1.5rem"}}><h2 className="serif" style={{fontSize:22,fontWeight:400,color:"var(--text)",marginBottom:4}}>{title}</h2>{sub&&<p style={{fontSize:12,color:"var(--text2)"}}>{sub}</p>}</div>;}
 
+function UserMenu({user,nav,onLogout}){
+  var _openState=useState(false);var open=_openState[0];var setOpen=_openState[1];
+  var isDoc=user.type==="doctor";
+  var menuRef=useRef(null);
+
+  useEffect(function(){
+    var handler=function(e){if(menuRef.current&&!menuRef.current.contains(e.target))setOpen(false);};
+    document.addEventListener("mousedown",handler);
+    return function(){document.removeEventListener("mousedown",handler);};
+  },[]);
+
+  var patItems=[
+    {icon:"🔍",label:"Cerca medici",section:"marketplace"},
+    {icon:"◷",label:"I miei appuntamenti",section:"appointments"},
+    {icon:"◫",label:"Messaggi",section:"messages"},
+    {icon:"💳",label:"Pagamenti",section:"payments"},
+    {icon:"◉",label:"Il mio profilo",section:"profile"},
+    {icon:"◈",label:"Medici salvati",section:"saved"},
+  ];
+
+  var goTo=function(section){
+    setOpen(false);
+    nav("dashboard");
+    setTimeout(function(){window._patSection&&window._patSection(section);},100);
+  };
+
+  return(
+    <div ref={menuRef} style={{position:"relative"}}>
+      {/* Trigger */}
+      <button onClick={function(){setOpen(!open);}}
+        style={{display:"flex",alignItems:"center",gap:8,background:open?"var(--surface)":"transparent",border:"1px solid "+(open?"var(--border)":"transparent"),borderRadius:"var(--radius-lg)",padding:"5px 10px 5px 6px",cursor:"pointer",transition:"all .15s"}}>
+        <Av ini={user.initials} sz={28} col={isDoc?"#2dc889":"#c8a96e"}/>
+        <div style={{textAlign:"left"}}>
+          <p style={{fontSize:11,fontWeight:600,color:"var(--text)",lineHeight:1.2}}>{user.name}</p>
+          <p style={{fontSize:9,color:"var(--text3)"}}>{isDoc?"Medico":"Paziente"}</p>
+        </div>
+        <span style={{fontSize:10,color:"var(--text3)",marginLeft:2,transition:"transform .2s",display:"inline-block",transform:open?"rotate(180deg)":"rotate(0deg)"}}>▾</span>
+      </button>
+
+      {/* Dropdown */}
+      {open&&(
+        <div className="fade-in" style={{position:"absolute",top:"calc(100% + 8px)",right:0,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",boxShadow:"0 8px 32px rgba(26,24,20,0.12)",minWidth:220,zIndex:200,overflow:"hidden",padding:"6px 0"}}>
+          {/* Header */}
+          <div style={{padding:"10px 14px 8px",borderBottom:"1px solid var(--border)",marginBottom:4}}>
+            <p style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>{user.name}</p>
+            <p style={{fontSize:10,color:"var(--text3)"}}>{isDoc?"Area Medico":"Area Personale"}</p>
+          </div>
+
+          {/* Items */}
+          {isDoc?(
+            <button onClick={function(){setOpen(false);nav("dashboard");}}
+              style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:"none",border:"none",color:"var(--text2)",fontSize:12,cursor:"pointer",textAlign:"left"}}
+              onMouseEnter={function(e){e.currentTarget.style.background="var(--bg2)";}}
+              onMouseLeave={function(e){e.currentTarget.style.background="none";}}>
+              <span style={{fontSize:14}}>⬡</span> Dashboard medico
+            </button>
+          ):(
+            patItems.map(function(item){
+              return(
+                <button key={item.section} onClick={function(){goTo(item.section);}}
+                  style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:"none",border:"none",color:"var(--text2)",fontSize:12,cursor:"pointer",textAlign:"left"}}
+                  onMouseEnter={function(e){e.currentTarget.style.background="var(--bg2)";}}
+                  onMouseLeave={function(e){e.currentTarget.style.background="none";}}>
+                  <span style={{fontSize:14}}>{item.icon}</span>{item.label}
+                </button>
+              );
+            })
+          )}
+
+          {/* Logout */}
+          <div style={{borderTop:"1px solid var(--border)",marginTop:4,paddingTop:4}}>
+            <button onClick={function(){setOpen(false);onLogout();}}
+              style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:"none",border:"none",color:"#c45535",fontSize:12,cursor:"pointer",textAlign:"left"}}
+              onMouseEnter={function(e){e.currentTarget.style.background="rgba(196,85,53,0.06)";}}
+              onMouseLeave={function(e){e.currentTarget.style.background="none";}}>
+              <span style={{fontSize:14}}>⏻</span> Esci
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function Header({user,onLogout,nav,cur}){
   return(
     <header className="layout-header" style={{background:"var(--bg3)",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",padding:"0 14px",gap:10,zIndex:10}}>
@@ -149,20 +234,8 @@ function Header({user,onLogout,nav,cur}){
         <span style={{fontSize:10,fontWeight:700,color:"var(--gold)",letterSpacing:"0.06em"}}>GLORIA ATTIVA</span>
       </div>
       {user?(
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          {user&&user.type!=="doctor"&&(
-            <nav style={{display:"flex",gap:2,marginRight:4}}>
-              {[["🔍 Cerca","marketplace"],["◷ Visite","appointments"],["◫ Messaggi","messages"],["💳 Pagamenti","payments"]].map(function(item){
-                return <button key={item[1]} onClick={function(){nav("dashboard");setTimeout(function(){window._patSection&&window._patSection(item[1]);},100);}}
-                  style={{padding:"5px 10px",borderRadius:"var(--radius)",border:"none",background:"transparent",color:"var(--text2)",fontSize:11,cursor:"pointer"}}
-                  onMouseEnter={function(e){e.currentTarget.style.background="var(--surface)";}}
-                  onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>{item[0]}</button>;
-              })}
-            </nav>
-          )}
-          <Av ini={user.initials} sz={30} col={user.type==="doctor"?"#2dc889":"#c8a96e"}/>
-          <div><p style={{fontSize:11,fontWeight:600,color:"var(--text)"}}>{user.name}</p><p style={{fontSize:9,color:"var(--text3)"}}>{user.type==="doctor"?"Medico":"Paziente"}</p></div>
-          <button onClick={onLogout} style={{fontSize:10,color:"var(--text3)",background:"none",border:"none",padding:"4px 8px",borderRadius:"var(--radius)"}}>Esci</button>
+        <div style={{position:"relative",display:"flex",alignItems:"center",gap:8}}>
+          <UserMenu user={user} nav={nav} onLogout={onLogout}/>
         </div>
       ):(
         <div style={{display:"flex",gap:6}}>
