@@ -6264,9 +6264,12 @@ function AutoStartAnamnesi({lastApptId,doc,user,selService,selDate,selTime,onClo
   },[lastApptId,doc,user,selService,onClose]);
 
   useEffect(function(){
-    // Non auto-avviare — l'utente clicca "Inizia subito"
+    timerRef.current=setTimeout(function(){
+      onClose();
+      if(lastApptId) window._startAnamnesi(lastApptId,Object.assign({},doc,{service:selService}),user);
+    },2000);
     return function(){if(timerRef.current)clearTimeout(timerRef.current);};
-  },[]);
+  },[lastApptId,doc,user,selService,onClose]);
 
   return(
     <div className="fade-in" style={{textAlign:"center",padding:"1rem 0"}}>
