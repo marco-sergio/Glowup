@@ -131,13 +131,6 @@ function SecTitle({title,sub}){return <div style={{marginBottom:"1.5rem"}}><h2 c
 function UserMenu({user,nav,onLogout}){
   var _openState=useState(false);var open=_openState[0];var setOpen=_openState[1];
   var isDoc=user.type==="doctor";
-  var menuRef=useRef(null);
-
-  useEffect(function(){
-    var handler=function(e){if(menuRef.current&&!menuRef.current.contains(e.target))setOpen(false);};
-    document.addEventListener("mousedown",handler);
-    return function(){document.removeEventListener("mousedown",handler);};
-  },[]);
 
   var patItems=[
     {icon:"🔍",label:"Cerca medici",section:"marketplace"},
@@ -151,59 +144,56 @@ function UserMenu({user,nav,onLogout}){
   var goTo=function(section){
     setOpen(false);
     nav("dashboard");
-    setTimeout(function(){window._patSection&&window._patSection(section);},100);
+    setTimeout(function(){window._patSection&&window._patSection(section);},150);
   };
 
+  // Close on outside click
+  var handleOverlayClick=function(){setOpen(false);};
+
   return(
-    <div ref={menuRef} style={{position:"relative"}}>
-      {/* Trigger */}
-      <button onClick={function(){setOpen(!open);}}
-        style={{display:"flex",alignItems:"center",gap:8,background:open?"var(--surface)":"transparent",border:"1px solid "+(open?"var(--border)":"transparent"),borderRadius:"var(--radius-lg)",padding:"5px 10px 5px 6px",cursor:"pointer",transition:"all .15s"}}>
+    <div style={{position:"relative"}}>
+      {open&&<div onClick={handleOverlayClick} style={{position:"fixed",inset:0,zIndex:199}}/>}
+      <button onClick={function(){setOpen(function(v){return !v;});}}
+        style={{display:"flex",alignItems:"center",gap:8,background:open?"var(--surface)":"rgba(200,169,110,0.06)",border:"1px solid "+(open?"var(--gold)":"rgba(200,169,110,0.2)"),borderRadius:"var(--radius-lg)",padding:"6px 12px 6px 8px",cursor:"pointer"}}>
         <Av ini={user.initials} sz={28} col={isDoc?"#2dc889":"#c8a96e"}/>
         <div style={{textAlign:"left"}}>
-          <p style={{fontSize:11,fontWeight:600,color:"var(--text)",lineHeight:1.2}}>{user.name}</p>
+          <p style={{fontSize:11,fontWeight:700,color:"var(--text)",lineHeight:1.3}}>{user.name}</p>
           <p style={{fontSize:9,color:"var(--text3)"}}>{isDoc?"Medico":"Paziente"}</p>
         </div>
-        <span style={{fontSize:10,color:"var(--text3)",marginLeft:2,transition:"transform .2s",display:"inline-block",transform:open?"rotate(180deg)":"rotate(0deg)"}}>▾</span>
+        <span style={{fontSize:10,color:"var(--gold)",marginLeft:2}}>{open?"▴":"▾"}</span>
       </button>
 
-      {/* Dropdown */}
       {open&&(
-        <div className="fade-in" style={{position:"absolute",top:"calc(100% + 8px)",right:0,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",boxShadow:"0 8px 32px rgba(26,24,20,0.12)",minWidth:220,zIndex:200,overflow:"hidden",padding:"6px 0"}}>
-          {/* Header */}
-          <div style={{padding:"10px 14px 8px",borderBottom:"1px solid var(--border)",marginBottom:4}}>
-            <p style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>{user.name}</p>
+        <div className="fade-in" style={{position:"absolute",top:"calc(100% + 6px)",right:0,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",boxShadow:"0 8px 32px rgba(26,24,20,0.15)",minWidth:230,zIndex:200,overflow:"hidden"}}>
+          <div style={{padding:"12px 16px 10px",background:"var(--bg2)",borderBottom:"1px solid var(--border)"}}>
+            <p style={{fontSize:13,fontWeight:700,color:"var(--text)"}}>{user.name}</p>
             <p style={{fontSize:10,color:"var(--text3)"}}>{isDoc?"Area Medico":"Area Personale"}</p>
           </div>
-
-          {/* Items */}
-          {isDoc?(
-            <button onClick={function(){setOpen(false);nav("dashboard");}}
-              style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:"none",border:"none",color:"var(--text2)",fontSize:12,cursor:"pointer",textAlign:"left"}}
-              onMouseEnter={function(e){e.currentTarget.style.background="var(--bg2)";}}
-              onMouseLeave={function(e){e.currentTarget.style.background="none";}}>
-              <span style={{fontSize:14}}>⬡</span> Dashboard medico
-            </button>
-          ):(
-            patItems.map(function(item){
-              return(
+          <div style={{padding:"6px 0"}}>
+            {isDoc?(
+              <button onClick={function(){setOpen(false);nav("dashboard");}}
+                style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"10px 16px",background:"none",border:"none",color:"var(--text2)",fontSize:13,cursor:"pointer",textAlign:"left"}}
+                onMouseEnter={function(e){e.currentTarget.style.background="var(--bg2)";}}
+                onMouseLeave={function(e){e.currentTarget.style.background="none";}}>
+                <span>⬡</span><span>Dashboard medico</span>
+              </button>
+            ):(
+              patItems.map(function(item){return(
                 <button key={item.section} onClick={function(){goTo(item.section);}}
-                  style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:"none",border:"none",color:"var(--text2)",fontSize:12,cursor:"pointer",textAlign:"left"}}
+                  style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"10px 16px",background:"none",border:"none",color:"var(--text2)",fontSize:13,cursor:"pointer",textAlign:"left"}}
                   onMouseEnter={function(e){e.currentTarget.style.background="var(--bg2)";}}
                   onMouseLeave={function(e){e.currentTarget.style.background="none";}}>
-                  <span style={{fontSize:14}}>{item.icon}</span>{item.label}
+                  <span>{item.icon}</span><span>{item.label}</span>
                 </button>
-              );
-            })
-          )}
-
-          {/* Logout */}
-          <div style={{borderTop:"1px solid var(--border)",marginTop:4,paddingTop:4}}>
+              );})
+            )}
+          </div>
+          <div style={{borderTop:"1px solid var(--border)",padding:"6px 0"}}>
             <button onClick={function(){setOpen(false);onLogout();}}
-              style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:"none",border:"none",color:"#c45535",fontSize:12,cursor:"pointer",textAlign:"left"}}
+              style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"10px 16px",background:"none",border:"none",color:"#c45535",fontSize:13,cursor:"pointer",textAlign:"left"}}
               onMouseEnter={function(e){e.currentTarget.style.background="rgba(196,85,53,0.06)";}}
               onMouseLeave={function(e){e.currentTarget.style.background="none";}}>
-              <span style={{fontSize:14}}>⏻</span> Esci
+              <span>⏻</span><span>Esci</span>
             </button>
           </div>
         </div>
