@@ -4020,6 +4020,288 @@ function DocPatients({user}){
   );
 }
 
+
+// ─── SLOT RISK PANEL ──────────────────────────────────────────────────────────
+function SlotRiskPanel({appointment, doctorId, patientId, patientName}){
+  var _reliabilityState=useState(null);var reliability=_reliabilityState[0];var setReliability=_reliabilityState[1];
+  var _slotState=useState(null);var slot=_slotState[0];var setSlot=_slotState[1];
+  var _entriesState=useState([]);var entries=_entriesState[0];var setEntries=_entriesState[1];
+  var _showFormState=useState(false);var showForm=_showFormState[0];var setShowForm=_showFormState[1];
+  var _searchQueryState=useState("");var searchQuery=_searchQueryState[0];var setSearchQuery=_searchQueryState[1];
+  var _searchResultsState=useState([]);var searchResults=_searchResultsState[0];var setSearchResults=_searchResultsState[1];
+  var _formState=useState({name:"",phone:"",email:"",notes:""});var form=_formState[0];var setForm=_formState[1];
+  var _savingState=useState(false);var saving=_savingState[0];var setSaving=_savingState[1];
+  var _tabState=useState("platform");var tab=_tabState[0];var setTab=_tabState[1];
+  var _searchingState=useState(false);var searching=_searchingState[0];var setSearching=_searchingState[1];
+
+  // Carica affidabilità paziente
+  useEffect(function(){
+    if(!patientId) return;
+    sb.from("appointments").select("id,visit_outcome,no_show,no_show_warned").eq("patient_id",patientId).then(function(res){
+      if(!res.error&&res.data&&res.data.length>0){
+        var all=res.data;
+        var esitati=all.filter(function(a){return a.visit_outcome;});
+        if(esitati.length===0){setReliability(null);return;}
+        var completed=esitati.filter(function(a){return a.visit_outcome!=="noshow"&&a.visit_outcome!=="noshow_warned";}).length;
+        var noShowsUnwarned=esitati.filter(function(a){return a.visit_outcome==="noshow"||(a.no_show===true&&!a.no_show_warned);}).length;
+        var noShowsWarned=esitati.filter(function(a){return a.visit_outcome==="noshow_warned"||(a.no_show===true&&a.no_show_warned);}).length;
+        var score=completed-(noShowsWarned*1)-(noShowsUnwarned*2);
+        var rel=esitati.length>0?Math.max(0,Math.round((score/esitati.length)*100)):100;
+        setReliability(rel);
+      } else {
+        setReliability(null);
+      }
+    });
+  },[patientId]);
+
+  // Carica slot esistente per questo appuntamento
+  useEffect(function(){
+    if(!appointment||!doctorId) return;
+    sb.from("waitlist_slots").select("*, waitlist_entries(*)").eq("appointment_id",appointment.id).eq("doctor_id",doctorId).maybeSingle().then(function(res){
+      if(!res.error&&res.data){
+        setSlot(res.data);
+        setEntries(res.data.waitlist_entries||[]);
+      }
+    });
+  },[appointment,doctorId]);
+
+  // Cerca pazienti sulla piattaforma
+  useEffect(function(){
+    if(!searchQuery||searchQuery.length<2){setSearchResults([]);return;}
+    var t=setTimeout(function(){
+      setSearching(true);
+      sb.from("profiles").select("id,name,city,email").eq("type","patient").ilike("name","%"+searchQuery+"%").limit(6).then(function(res){
+        setSearching(false);
+        if(!res.error&&res.data) setSearchResults(res.data);
+      });
+    },300);
+    return function(){clearTimeout(t);};
+  },[searchQuery]);
+
+  var createSlot=async function(){
+    setSaving(true);
+    var res=await sb.from("waitlist_slots").insert({
+      doctor_id:doctorId,
+      appointment_id:appointment.id,
+      service:appointment.service,
+      date:appointment.date,
+      time:appointment.time,
+      status:"active"
+    }).select().single();
+    if(!res.error&&res.data){
+      setSlot(res.data);
+      setShowForm(true);
+    }
+    setSaving(false);
+  };
+
+  var addPlatformPatient=async function(patient){
+    if(!slot) return;
+    var already=entries.find(function(e){return e.patient_id===patient.id;});
+    if(already) return;
+    var pos=entries.length+1;
+    var res=await sb.from("waitlist_entries").insert({
+      slot_id:slot.id,
+      doctor_id:doctorId,
+      patient_id:patient.id,
+      name:patient.name,
+      email:patient.email||null,
+      position:pos,
+      contacted:false
+    }).select().single();
+    if(!res.error&&res.data){
+      setEntries(function(prev){return [...prev,res.data];});
+      setSearchQuery("");
+      setSearchResults([]);
+    }
+  };
+
+  var addManualPatient=async function(){
+    if(!slot||!form.name) return;
+    setSaving(true);
+    var pos=entries.length+1;
+    var res=await sb.from("waitlist_entries").insert({
+      slot_id:slot.id,
+      doctor_id:doctorId,
+      name:form.name,
+      phone:form.phone||null,
+      email:form.email||null,
+      notes:form.notes||null,
+      position:pos,
+      contacted:false
+    }).select().single();
+    if(!res.error&&res.data){
+      setEntries(function(prev){return [...prev,res.data];});
+      setForm({name:"",phone:"",email:"",notes:""});
+    }
+    setSaving(false);
+  };
+
+  var toggleContacted=async function(entryId, current){
+    await sb.from("waitlist_entries").update({contacted:!current}).eq("id",entryId);
+    setEntries(function(prev){return prev.map(function(e){return e.id===entryId?Object.assign({},e,{contacted:!current}):e;});});
+  };
+
+  var removeEntry=async function(entryId){
+    await sb.from("waitlist_entries").delete().eq("id",entryId);
+    setEntries(function(prev){return prev.filter(function(e){return e.id!==entryId;});});
+  };
+
+  // Calcola livello di rischio
+  var riskLevel=reliability===null?"unknown":reliability>=80?"low":reliability>=50?"medium":"high";
+  var riskConfig={
+    unknown:{color:"var(--text3)",bg:"var(--bg2)",border:"var(--border)",icon:"❓",label:"Dati insufficienti",sub:"Prima visita con te — nessuno storico disponibile",dot:"#8c8880"},
+    low:{color:"#2dc889",bg:"rgba(45,200,137,0.06)",border:"rgba(45,200,137,0.2)",icon:"🟢",label:"Slot sicuro",sub:"Paziente affidabile, probabilità di presentarsi alta",dot:"#2dc889"},
+    medium:{color:"var(--gold)",bg:"rgba(200,169,110,0.07)",border:"rgba(200,169,110,0.25)",icon:"🟡",label:"Rischio moderato",sub:"Storico incerto — valuta una lista d'attesa di riserva",dot:"#c8a96e"},
+    high:{color:"#c45535",bg:"rgba(196,85,53,0.07)",border:"rgba(196,85,53,0.2)",icon:"🔴",label:"Alto rischio no-show",sub:"Storico problematico — consigliamo un sostituto pronto",dot:"#c45535"},
+  };
+  var rc=riskConfig[riskLevel];
+
+  return(
+    <div style={{marginBottom:20}}>
+      {/* Indicatore rischio */}
+      <div style={{padding:"12px 16px",borderRadius:"var(--radius-lg)",background:rc.bg,border:"1px solid "+rc.border,marginBottom:slot?12:0}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:10,height:10,borderRadius:"50%",background:rc.dot,flexShrink:0,boxShadow:"0 0 6px "+rc.dot}}/>
+            <div>
+              <p style={{fontSize:12,fontWeight:700,color:rc.color,marginBottom:2}}>{rc.label}{reliability!==null&&" · "+reliability+"% affidabilità"}</p>
+              <p style={{fontSize:11,color:"var(--text3)"}}>{rc.sub}</p>
+            </div>
+          </div>
+          {(riskLevel==="medium"||riskLevel==="high")&&!slot&&(
+            <button onClick={createSlot} disabled={saving}
+              style={{flexShrink:0,padding:"7px 14px",borderRadius:"var(--radius)",background:rc.color,border:"none",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",opacity:saving?0.6:1}}>
+              {saving?"...":"+ Lista d'attesa"}
+            </button>
+          )}
+          {slot&&(
+            <span style={{fontSize:10,padding:"3px 10px",borderRadius:99,background:rc.color+"22",color:rc.color,fontWeight:700,flexShrink:0}}>LISTA ATTIVA · {entries.length}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Pannello lista d'attesa */}
+      {slot&&(
+        <div className="fade-in" style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden"}}>
+          {/* Header lista */}
+          <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--bg2)"}}>
+            <p style={{fontSize:11,fontWeight:700,color:"var(--text2)",letterSpacing:"0.06em"}}>LISTA D'ATTESA — {appointment.service} · {appointment.date} {appointment.time}</p>
+            <button onClick={function(){setShowForm(function(v){return !v;});}}
+              style={{padding:"5px 12px",borderRadius:"var(--radius)",background:showForm?"var(--bg3)":"var(--gold)",border:"none",color:showForm?"var(--text2)":"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+              {showForm?"✕ Chiudi":"+ Aggiungi"}
+            </button>
+          </div>
+
+          {/* Form aggiunta */}
+          {showForm&&(
+            <div className="fade-in" style={{padding:"14px 16px",borderBottom:"1px solid var(--border)",background:"var(--bg2)"}}>
+              {/* Tab selezione */}
+              <div style={{display:"flex",gap:6,marginBottom:14}}>
+                {[["platform","🔍 Cerca su GlowUp"],["manual","✏️ Aggiungi manuale"]].map(function(t){return(
+                  <button key={t[0]} onClick={function(){setTab(t[0]);}}
+                    style={{padding:"6px 14px",borderRadius:99,border:"1px solid "+(tab===t[0]?"var(--gold)":"var(--border)"),background:tab===t[0]?"var(--gold-light)":"var(--surface)",color:tab===t[0]?"var(--gold-dim)":"var(--text2)",fontSize:11,fontWeight:tab===t[0]?700:400,cursor:"pointer"}}>
+                    {t[1]}
+                  </button>
+                );})}
+              </div>
+
+              {tab==="platform"&&(
+                <div>
+                  <input value={searchQuery} onChange={function(e){setSearchQuery(e.target.value);}}
+                    placeholder="Cerca paziente per nome..." className="inp" style={{marginBottom:8}}/>
+                  {searching&&<p style={{fontSize:11,color:"var(--text3)",padding:"4px 0"}}>Ricerca...</p>}
+                  {searchResults.length>0&&(
+                    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                      {searchResults.map(function(p){
+                        var already=entries.find(function(e){return e.patient_id===p.id;});
+                        var ini=p.name.split(" ").map(function(n){return n[0];}).join("").slice(0,2).toUpperCase();
+                        return(
+                          <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:"var(--radius)",background:"var(--surface)",border:"1px solid var(--border)"}}>
+                            <Av ini={ini} sz={28} col="#c8a96e"/>
+                            <div style={{flex:1}}>
+                              <p style={{fontSize:12,fontWeight:600}}>{p.name}</p>
+                              {p.city&&<p style={{fontSize:10,color:"var(--text3)"}}>📍 {p.city}</p>}
+                            </div>
+                            <button onClick={function(){addPlatformPatient(p);}}
+                              disabled={!!already}
+                              style={{padding:"5px 12px",borderRadius:"var(--radius)",background:already?"var(--bg3)":"var(--teal-dim)",border:"1px solid "+(already?"var(--border)":"rgba(45,200,137,0.3)"),color:already?"var(--text3)":"var(--teal)",fontSize:11,fontWeight:700,cursor:already?"not-allowed":"pointer"}}>
+                              {already?"Aggiunto":"+ Aggiungi"}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {tab==="manual"&&(
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  <input value={form.name} onChange={function(e){setForm(function(p){return Object.assign({},p,{name:e.target.value});});}}
+                    placeholder="Nome e cognome *" className="inp"/>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                    <input value={form.phone} onChange={function(e){setForm(function(p){return Object.assign({},p,{phone:e.target.value});});}}
+                      placeholder="Telefono" className="inp"/>
+                    <input value={form.email} onChange={function(e){setForm(function(p){return Object.assign({},p,{email:e.target.value});});}}
+                      placeholder="Email" className="inp"/>
+                  </div>
+                  <input value={form.notes} onChange={function(e){setForm(function(p){return Object.assign({},p,{notes:e.target.value});});}}
+                    placeholder="Note (es. servizio di interesse)" className="inp"/>
+                  <button onClick={addManualPatient} disabled={saving||!form.name}
+                    style={{padding:"9px",borderRadius:"var(--radius)",background:form.name?"var(--gold)":"var(--border)",border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:form.name?"pointer":"not-allowed",opacity:(saving||!form.name)?0.5:1}}>
+                    {saving?"Salvataggio...":"Aggiungi alla lista"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Lista candidati */}
+          {entries.length===0?(
+            <div style={{padding:"20px",textAlign:"center"}}>
+              <p style={{fontSize:12,color:"var(--text3)"}}>Nessun candidato ancora — aggiungi il primo sostituto</p>
+            </div>
+          ):(
+            <div>
+              {entries.sort(function(a,b){return a.position-b.position;}).map(function(e,i){
+                var ini=(e.name||"?").split(" ").map(function(n){return n[0];}).join("").slice(0,2).toUpperCase();
+                var isPlatform=!!e.patient_id;
+                return(
+                  <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",borderBottom:"1px solid var(--border)",opacity:e.contacted?0.55:1,transition:"opacity .2s"}}>
+                    <span style={{fontSize:11,fontWeight:700,color:"var(--text3)",width:16,flexShrink:0}}>#{i+1}</span>
+                    <Av ini={ini} sz={30} col={isPlatform?"#2dc889":"#5b8dee"}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <p style={{fontSize:12,fontWeight:600,textDecoration:e.contacted?"line-through":"none"}}>{e.name||"—"}</p>
+                        <span style={{fontSize:9,padding:"2px 6px",borderRadius:99,background:isPlatform?"rgba(45,200,137,0.1)":"rgba(91,141,238,0.1)",color:isPlatform?"#2dc889":"#5b8dee",fontWeight:700}}>{isPlatform?"GlowUp":"Manuale"}</span>
+                      </div>
+                      <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                        {e.phone&&<p style={{fontSize:10,color:"var(--text3)"}}>📞 {e.phone}</p>}
+                        {e.email&&<p style={{fontSize:10,color:"var(--text3)"}}>✉️ {e.email}</p>}
+                        {e.notes&&<p style={{fontSize:10,color:"var(--text3)",fontStyle:"italic"}}>{e.notes}</p>}
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:6,flexShrink:0}}>
+                      <button onClick={function(){toggleContacted(e.id,e.contacted);}}
+                        title={e.contacted?"Segna come non contattato":"Segna come contattato"}
+                        style={{padding:"5px 10px",borderRadius:"var(--radius)",background:e.contacted?"rgba(45,200,137,0.1)":"var(--bg2)",border:"1px solid "+(e.contacted?"rgba(45,200,137,0.3)":"var(--border)"),color:e.contacted?"#2dc889":"var(--text3)",fontSize:11,cursor:"pointer"}}>
+                        {e.contacted?"✓ Contattato":"Contatta"}
+                      </button>
+                      <button onClick={function(){removeEntry(e.id);}}
+                        style={{padding:"5px 8px",borderRadius:"var(--radius)",background:"none",border:"1px solid var(--border)",color:"var(--text3)",fontSize:11,cursor:"pointer"}}>✕</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DocRequests({user}){
   var ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRtanJleml4bGJhcnJ5YWl5aHBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4Mjg5MTYsImV4cCI6MjA5NDQwNDkxNn0.HRQZmod5tXe97GXABDyL8QB_YGL6Tf3nccLpbLblWiE";
   var _reqsState=useState([]);var reqs=_reqsState[0];var setReqs=_reqsState[1];
@@ -4214,6 +4496,12 @@ function DocRequests({user}){
               </div>
             );
           })()}
+
+          {/* Rischio slot */}
+          <div style={{marginBottom:4}}>
+            <p style={{fontSize:11,color:"var(--text3)",fontWeight:600,marginBottom:8,letterSpacing:1}}>RISCHIO SLOT</p>
+            <SlotRiskPanel appointment={sel} doctorId={user.id} patientId={sel.patient_id} patientName={sel.patient&&sel.patient.name?sel.patient.name:"Paziente"}/>
+          </div>
 
           {/* Anamnesi */}
           <div style={{marginBottom:20}}>
