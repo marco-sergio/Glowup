@@ -6820,7 +6820,7 @@ function DailyReminderPopup({user,onClose}){
         )}
 
         <div style={{padding:"20px"}}>
-          {IS_EVENING?(
+          {(mode==="evening")?(
             // EVENING MODE: review each appointment
             currentAppt?(
               <div>
