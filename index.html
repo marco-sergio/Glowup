@@ -4190,8 +4190,11 @@ function DocRequests({user}){
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
             <div>
               <p style={{fontSize:11,color:"var(--text3)",marginBottom:4,fontWeight:600,letterSpacing:1}}>RICHIESTA PRENOTAZIONE</p>
-              <h2 style={{fontSize:20,fontWeight:700,marginBottom:2}}>{sel.patient&&sel.patient.name?sel.patient.name:"Paziente"}</h2>
-              {sel.patient&&sel.patient.city&&<p style={{fontSize:12,color:"var(--text3)"}}>📍 {sel.patient.city}</p>}
+              <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                <h2 style={{fontSize:20,fontWeight:700}}>{sel.patient&&sel.patient.name?sel.patient.name:"Paziente"}</h2>
+                {sel.patient_id&&<PatientSummaryBadge patientId={sel.patient_id}/>}
+              </div>
+              {sel.patient&&sel.patient.city&&<p style={{fontSize:12,color:"var(--text3)",marginTop:2}}>📍 {sel.patient.city}</p>}
             </div>
             <button onClick={closeDetail} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:"var(--text3)",lineHeight:1}}>✕</button>
           </div>
@@ -6749,7 +6752,6 @@ function PatientStatsCard({patientId,compact,showFull}){
 // ─── PATIENT SUMMARY FOR NEW DOCTOR (on request) ──────────────────
 function PatientSummaryBadge({patientId}){
   var _statsState=useState(null);var stats=_statsState[0];var setStats=_statsState[1];
-  var _openState=useState(false);var open=_openState[0];var setOpen=_openState[1];
 
   useEffect(function(){
     if(!patientId) return;
@@ -6760,42 +6762,24 @@ function PatientSummaryBadge({patientId}){
 
   if(!stats||stats.total_requests===0) return null;
 
-  var reliability=Math.round((stats.completed_visits/stats.total_requests)*100);
-  var reliabilityColor=reliability>=80?"#2dc889":reliability>=50?"var(--gold)":"#c45535";
+  var reliability=stats.total_requests>0?Math.round((stats.completed_visits/stats.total_requests)*100):100;
+  var reliabilityColor=reliability>=80?"#2dc889":reliability>=60?"var(--gold)":"#c45535";
   var hasNoShow=stats.no_shows>0;
 
   return(
-    <div style={{position:"relative",display:"inline-block"}}>
-      <button onClick={function(){setOpen(!open);}}
-        style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:99,background:hasNoShow?"rgba(196,85,53,0.08)":"rgba(45,200,137,0.08)",border:"1px solid "+(hasNoShow?"rgba(196,85,53,0.2)":"rgba(45,200,137,0.2)"),cursor:"pointer",fontSize:11,color:hasNoShow?"#c45535":"#2dc889",fontWeight:600}}>
-        <span>{hasNoShow?"⚠️":"✅"}</span>
-        <span>{stats.completed_visits} visite · {hasNoShow?stats.no_shows+" no-show":"affidabile"}</span>
-        <span style={{fontSize:9,opacity:0.7}}>▾</span>
-      </button>
-      {open&&(
-        <>
-          <div onClick={function(){setOpen(false);}} style={{position:"fixed",inset:0,zIndex:49}}/>
-          <div className="fade-in" style={{position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:50,background:"var(--surface)",borderRadius:"var(--radius-lg)",border:"1px solid var(--border)",boxShadow:"0 8px 32px rgba(26,24,20,0.12)",padding:"14px",minWidth:280}}>
-            <p style={{fontSize:10,color:"var(--text3)",fontWeight:700,letterSpacing:"0.08em",marginBottom:10}}>STORICO AGGREGATO PAZIENTE</p>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-              {[
-                {icon:"📅",label:"Visite completate",value:stats.completed_visits},
-                {icon:"📋",label:"Richieste totali",value:stats.total_requests},
-                {icon:"⚠️",label:"No-show totali",value:stats.no_shows,warn:stats.no_shows>0},
-                {icon:"🎯",label:"Affidabilità",value:reliability+"%",color:reliabilityColor},
-              ].map(function(s){return(
-                <div key={s.label} style={{padding:"8px 10px",background:"var(--bg2)",borderRadius:"var(--radius)"}}>
-                  <p style={{fontSize:10,color:"var(--text3)",marginBottom:3}}>{s.icon} {s.label}</p>
-                  <p style={{fontSize:14,fontWeight:700,color:s.warn?"#c45535":s.color||"var(--text)"}}>{s.value}</p>
-                </div>
-              );})}
-            </div>
-            <p style={{fontSize:9,color:"var(--text3)",lineHeight:1.5,borderTop:"1px solid var(--border)",paddingTop:8}}>
-              ℹ️ Dati aggregati anonimi visibili ai professionisti contattati dal paziente
-            </p>
-          </div>
-        </>
-      )}
+    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+      {[
+        {label:"Richieste",value:stats.total_requests,icon:"📋",color:"var(--text2)"},
+        {label:"Visite",value:stats.completed_visits,icon:"📅",color:"var(--gold)"},
+        {label:"No-show",value:stats.no_shows,icon:hasNoShow?"⚠️":"✅",color:hasNoShow?"#c45535":"#2dc889"},
+        {label:"Affidabilità",value:reliability+"%",icon:"🎯",color:reliabilityColor},
+      ].map(function(s){return(
+        <div key={s.label} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:99,background:"var(--bg2)",border:"1px solid var(--border)"}}>
+          <span style={{fontSize:11}}>{s.icon}</span>
+          <span style={{fontSize:11,fontWeight:700,color:s.color}}>{s.value}</span>
+          <span style={{fontSize:9,color:"var(--text3)"}}>{s.label}</span>
+        </div>
+      );})}
     </div>
   );
 }
