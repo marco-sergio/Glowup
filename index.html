@@ -2540,6 +2540,7 @@ function DocCalendar({user}){
                 <p style={{fontSize:16,fontWeight:700,marginBottom:2}}>{selAppt.patient?selAppt.patient.name:"Paziente"}</p>
                 <p style={{fontSize:13,color:"var(--gold)",fontWeight:600}}>{selAppt.service}</p>
               </div>
+              <PatientSummaryBadge patientId={selAppt.patient_id}/>
               <button onClick={function(){setSelAppt(null);setCalReschedMode(false);setCalCancelMode(null);setCalCancelReason("");setCalCancelCustom("");}} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:"var(--text3)"}}>✕</button>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
@@ -3824,6 +3825,7 @@ function DocPatients({user}){
           </div>
         </div>
       </div>
+      <div style={{marginBottom:16}}><PatientStatsCard patientId={sel.id}/></div>
 
       {/* Tab bar */}
       <div style={{display:"flex",gap:4,marginBottom:20,borderBottom:"1px solid var(--border)",paddingBottom:0}}>
@@ -4169,6 +4171,7 @@ function DocRequests({user}){
                       <p style={{fontSize:13,fontWeight:600,marginBottom:2}}>{patName}</p>
                       <p style={{fontSize:11,color:"var(--gold)",fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.service}</p>
                       <p style={{fontSize:11,color:"var(--text3)"}}>{r.date+" "+r.time}</p>
+                      <PatientSummaryBadge patientId={r.patient_id}/>
                       {isCounter&&<p style={{fontSize:10,color:"var(--gold)",fontWeight:700,marginTop:2}}>↩ Controproposta paziente</p>}
                     </div>
                     <span style={{fontSize:10,color:"var(--gold)",fontWeight:700,flexShrink:0}}>›</span>
@@ -6688,6 +6691,116 @@ function AnamnesPage({apptId,doc,user,onClose}){
 // ─── MOBILE APP ROOT ───────────────────────────────────────────────
 
 // ─── DAILY REMINDER POPUP ─────────────────────────────────────────
+// ─── PATIENT STATS COMPONENT ──────────────────────────────────────
+function PatientStatsCard({patientId,compact,showFull}){
+  var _statsState=useState(null);var stats=_statsState[0];var setStats=_statsState[1];
+
+  useEffect(function(){
+    if(!patientId) return;
+    sb.from("patient_stats").select("*").eq("patient_id",patientId).single().then(function(res){
+      if(!res.error&&res.data) setStats(res.data);
+    });
+  },[patientId]);
+
+  if(!stats) return null;
+
+  var reliability=stats.total_requests>0?Math.round((stats.completed_visits/stats.total_requests)*100):100;
+  var reliabilityColor=reliability>=80?"#2dc889":reliability>=50?"var(--gold)":"#c45535";
+
+  if(compact) return(
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+      <span style={{fontSize:11,color:"var(--text3)"}}>📅 {stats.completed_visits} visite</span>
+      <span style={{fontSize:11,color:"var(--text3)"}}>📋 {stats.total_requests} richieste</span>
+      {stats.no_shows>0&&<span style={{fontSize:11,color:"#c45535",fontWeight:600}}>⚠️ {stats.no_shows} no-show</span>}
+    </div>
+  );
+
+  return(
+    <div style={{padding:"14px 16px",background:"var(--surface)",borderRadius:"var(--radius-lg)",border:"1px solid var(--border)"}}>
+      <p style={{fontSize:10,color:"var(--text3)",fontWeight:700,letterSpacing:"0.08em",marginBottom:12}}>STORICO PAZIENTE</p>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:12}}>
+        {[
+          {icon:"📅",label:"Visite",value:stats.completed_visits,color:"var(--gold)"},
+          {icon:"📋",label:"Richieste",value:stats.total_requests,color:"var(--text2)"},
+          {icon:"⚠️",label:"No-show",value:stats.no_shows,color:stats.no_shows>0?"#c45535":"#2dc889"},
+          {icon:"🎯",label:"Affidabilità",value:reliability+"%",color:reliabilityColor},
+        ].map(function(s){return(
+          <div key={s.label} style={{textAlign:"center",padding:"10px 6px",background:"var(--bg2)",borderRadius:"var(--radius)"}}>
+            <p style={{fontSize:16,marginBottom:4}}>{s.icon}</p>
+            <p style={{fontSize:16,fontWeight:700,color:s.color,fontFamily:"Playfair Display,serif",lineHeight:1}}>{s.value}</p>
+            <p style={{fontSize:9,color:"var(--text3)",fontWeight:600,marginTop:3}}>{s.label.toUpperCase()}</p>
+          </div>
+        );})}
+      </div>
+      {stats.no_shows>0&&(
+        <div style={{padding:"8px 12px",background:"rgba(196,85,53,0.06)",borderRadius:"var(--radius)",border:"1px solid rgba(196,85,53,0.15)",fontSize:11,color:"#c45535"}}>
+          ⚠️ {stats.no_shows_unwarned} senza preavviso · {stats.no_shows-stats.no_shows_unwarned} con preavviso
+        </div>
+      )}
+      {stats.last_visit_date&&(
+        <p style={{fontSize:11,color:"var(--text3)",marginTop:10}}>
+          Ultima visita: <strong>{stats.last_visit_date}</strong>{stats.last_service&&" · "+stats.last_service}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── PATIENT SUMMARY FOR NEW DOCTOR (on request) ──────────────────
+function PatientSummaryBadge({patientId}){
+  var _statsState=useState(null);var stats=_statsState[0];var setStats=_statsState[1];
+  var _openState=useState(false);var open=_openState[0];var setOpen=_openState[1];
+
+  useEffect(function(){
+    if(!patientId) return;
+    sb.from("patient_stats").select("*").eq("patient_id",patientId).single().then(function(res){
+      if(!res.error&&res.data) setStats(res.data);
+    });
+  },[patientId]);
+
+  if(!stats||stats.total_requests===0) return null;
+
+  var reliability=Math.round((stats.completed_visits/stats.total_requests)*100);
+  var reliabilityColor=reliability>=80?"#2dc889":reliability>=50?"var(--gold)":"#c45535";
+  var hasNoShow=stats.no_shows>0;
+
+  return(
+    <div style={{position:"relative",display:"inline-block"}}>
+      <button onClick={function(){setOpen(!open);}}
+        style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:99,background:hasNoShow?"rgba(196,85,53,0.08)":"rgba(45,200,137,0.08)",border:"1px solid "+(hasNoShow?"rgba(196,85,53,0.2)":"rgba(45,200,137,0.2)"),cursor:"pointer",fontSize:11,color:hasNoShow?"#c45535":"#2dc889",fontWeight:600}}>
+        <span>{hasNoShow?"⚠️":"✅"}</span>
+        <span>{stats.completed_visits} visite · {hasNoShow?stats.no_shows+" no-show":"affidabile"}</span>
+        <span style={{fontSize:9,opacity:0.7}}>▾</span>
+      </button>
+      {open&&(
+        <>
+          <div onClick={function(){setOpen(false);}} style={{position:"fixed",inset:0,zIndex:49}}/>
+          <div className="fade-in" style={{position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:50,background:"var(--surface)",borderRadius:"var(--radius-lg)",border:"1px solid var(--border)",boxShadow:"0 8px 32px rgba(26,24,20,0.12)",padding:"14px",minWidth:280}}>
+            <p style={{fontSize:10,color:"var(--text3)",fontWeight:700,letterSpacing:"0.08em",marginBottom:10}}>STORICO AGGREGATO PAZIENTE</p>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+              {[
+                {icon:"📅",label:"Visite completate",value:stats.completed_visits},
+                {icon:"📋",label:"Richieste totali",value:stats.total_requests},
+                {icon:"⚠️",label:"No-show totali",value:stats.no_shows,warn:stats.no_shows>0},
+                {icon:"🎯",label:"Affidabilità",value:reliability+"%",color:reliabilityColor},
+              ].map(function(s){return(
+                <div key={s.label} style={{padding:"8px 10px",background:"var(--bg2)",borderRadius:"var(--radius)"}}>
+                  <p style={{fontSize:10,color:"var(--text3)",marginBottom:3}}>{s.icon} {s.label}</p>
+                  <p style={{fontSize:14,fontWeight:700,color:s.warn?"#c45535":s.color||"var(--text)"}}>{s.value}</p>
+                </div>
+              );})}
+            </div>
+            <p style={{fontSize:9,color:"var(--text3)",lineHeight:1.5,borderTop:"1px solid var(--border)",paddingTop:8}}>
+              ℹ️ Dati aggregati anonimi visibili ai professionisti contattati dal paziente
+            </p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+
 function DailyReminderPopup({user,onClose}){
   var TODAY=new Date().toISOString().slice(0,10);
   var HOUR=new Date().getHours();
