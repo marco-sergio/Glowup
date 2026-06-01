@@ -3999,7 +3999,10 @@ function DocPatients({user}){
                 <div style={{display:"flex",gap:10,alignItems:"center"}}>
                   <Av ini={ini} sz={34} col={p.color}/>
                   <div>
-                    <p style={{fontSize:12,fontWeight:600}}>{p.name}</p>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <p style={{fontSize:12,fontWeight:600}}>{p.name}</p>
+                      <NoShowBadge patientId={p.id} inline={true}/>
+                    </div>
                     {p.city&&<p style={{fontSize:10,color:"var(--text3)"}}>{"📍 "+p.city}</p>}
                   </div>
                 </div>
