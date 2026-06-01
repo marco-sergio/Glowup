@@ -2029,6 +2029,26 @@ function RegisterPage({onLogin,nav}){
 function DocDashboard({user}){
   var _secState=useState("overview");var sec=_secState[0];var setSec=_secState[1];
   var _pendingCountState=useState(0);var pendingCount=_pendingCountState[0];var setPendingCount=_pendingCountState[1];
+  var _reminderState=useState(false);var showReminder=_reminderState[0];var setShowReminder=_reminderState[1];
+  var _reminderCheckedState=useState(false);var reminderChecked=_reminderCheckedState[0];var setReminderChecked=_reminderCheckedState[1];
+
+  // Expose reminder trigger globally
+  useEffect(function(){window._showReminder=function(){setShowReminder(true);}; return function(){window._showReminder=null;};},[]);
+
+  // Show reminder popup: morning (8-10) or evening (17-20)
+  useEffect(function(){
+    if(reminderChecked) return;
+    var hour=new Date().getHours();
+    var shouldShow=(hour>=8&&hour<=10)||(hour>=17&&hour<=20);
+    if(shouldShow){
+      var key="glowup_reminder_"+new Date().toISOString().slice(0,10)+"_"+(hour>=17?"eve":"morn");
+      if(!localStorage.getItem(key)){
+        setShowReminder(true);
+        localStorage.setItem(key,"1");
+      }
+    }
+    setReminderChecked(true);
+  },[reminderChecked]);
 
   useEffect(function(){
     if(!user||!user.id) return;
@@ -2080,6 +2100,7 @@ function DocDashboard({user}){
         {sec==="ai"&&<DocGloriaAI user={user}/>}
         {sec==="sedi"&&<DocSedi user={user}/>}
       </div>
+    {showReminder&&<DailyReminderPopup user={user} onClose={function(){setShowReminder(false);}}/>}
 
     </div>
   );
@@ -3774,7 +3795,10 @@ function DocPatients({user}){
       <div style={{display:"flex",gap:16,alignItems:"flex-start",marginBottom:20}}>
         <Av ini={sel.name.split(" ").map(function(n){return n[0];}).join("").slice(0,2).toUpperCase()} sz={56} col={sel.color||"#c8a96e"}/>
         <div style={{flex:1}}>
-          <h2 style={{fontSize:22,fontWeight:700,marginBottom:4}}>{sel.name}</h2>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+            <h2 style={{fontSize:22,fontWeight:700}}>{sel.name}</h2>
+            <NoShowBadge patientId={sel.id} inline={true}/>
+          </div>
           <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
             {sel.city&&<span style={{fontSize:12,color:"var(--text3)"}}>📍 {sel.city}</span>}
             {sel.email&&<span style={{fontSize:12,color:"var(--text3)"}}>✉ {sel.email}</span>}
@@ -6643,6 +6667,592 @@ function AnamnesPage({apptId,doc,user,onClose}){
 
 // ─── MOBILE APP ROOT ───────────────────────────────────────────────
 
+// ─── DAILY REMINDER POPUP ─────────────────────────────────────────
+function DailyReminderPopup({user,onClose}){
+  var TODAY=new Date().toISOString().slice(0,10);
+  var HOUR=new Date().getHours();
+  var IS_EVENING=HOUR>=17;
+
+  var _modeState=useState(IS_EVENING?"evening":"morning");var mode=_modeState[0];
+  var _apptsState=useState([]);var appts=_apptsState[0];var setAppts=_apptsState[1];
+  var _loadingState=useState(true);var loading=_loadingState[0];var setLoading=_loadingState[1];
+  var _stepState=useState(0);var step=_stepState[0];var setStep=_stepState[1];
+  var _outcomesState=useState({});var outcomes=_outcomesState[0];var setOutcomes=_outcomesState[1];
+  var _notesState=useState({});var notes=_notesState[0];var setNotes=_notesState[1];
+  var _savingState=useState(false);var saving=_savingState[0];var setSaving=_savingState[1];
+  var _doneState=useState(false);var done=_doneState[0];var setDone=_doneState[1];
+
+  var OUTCOMES=[
+    {id:"great",label:"Bene, abbiamo fissato un secondo incontro",icon:"✅",color:"#2dc889"},
+    {id:"doubtful",label:"Dubbioso se procedere",icon:"🤔",color:"#5b8dee"},
+    {id:"budget",label:"Problema di budget",icon:"💶",color:"#c8a96e"},
+    {id:"noshow_warned",label:"Non si è presentato ma aveva avvisato",icon:"📞",color:"#e06b4a"},
+    {id:"noshow",label:"Non si è presentato e non ha avvisato",icon:"⚠️",color:"#c45535"},
+    {id:"other",label:"Altro",icon:"📝",color:"#9b7fd4"},
+  ];
+
+  useEffect(function(){
+    sb.from("appointments")
+      .select("*, patient:profiles!appointments_patient_id_fkey(id,name)")
+      .eq("doctor_id",user.id)
+      .eq("date",TODAY)
+      .in("status",["confirmed","pending"])
+      .order("time",{ascending:true})
+      .then(function(res){
+        if(!res.error&&res.data) setAppts(res.data);
+        setLoading(false);
+      });
+  },[user,TODAY]);
+
+  var currentAppt=appts[step];
+
+  var setOutcome=function(apptId,outcomeId){
+    setOutcomes(function(prev){return Object.assign({},prev,{[apptId]:outcomeId});});
+  };
+
+  var saveAll=async function(){
+    setSaving(true);
+    for(var i=0;i<appts.length;i++){
+      var a=appts[i];
+      var outcome=outcomes[a.id];
+      if(!outcome) continue;
+      var isNoShow=outcome==="noshow";
+      var isNoShowWarned=outcome==="noshow_warned";
+      // Save to appointments
+      await sb.from("appointments").update({
+        visit_outcome:outcome,
+        visit_notes:notes[a.id]||null,
+        no_show:isNoShow||isNoShowWarned,
+        no_show_warned:isNoShowWarned,
+      }).eq("id",a.id);
+      // Save to visit_reviews
+      await sb.from("visit_reviews").insert({
+        appointment_id:a.id,
+        doctor_id:user.id,
+        patient_id:a.patient_id,
+        outcome:outcome,
+        notes:notes[a.id]||null,
+      });
+    }
+    setSaving(false);
+    setDone(true);
+    setTimeout(onClose,2000);
+  };
+
+  if(loading) return null;
+  if(appts.length===0) return(
+    <div style={{position:"fixed",inset:0,background:"rgba(26,24,20,0.6)",backdropFilter:"blur(6px)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div className="scale-in" style={{background:"var(--surface)",borderRadius:"var(--radius-lg)",padding:"2rem",maxWidth:400,width:"90%",textAlign:"center",border:"1px solid var(--border)"}}>
+        <p style={{fontSize:28,marginBottom:12}}>✅</p>
+        <p style={{fontSize:16,fontWeight:700,marginBottom:8}}>Nessun appuntamento oggi</p>
+        <p style={{fontSize:13,color:"var(--text3)",marginBottom:20}}>Non hai visite programmate per oggi</p>
+        <button onClick={onClose} style={{padding:"10px 24px",borderRadius:"var(--radius)",background:"var(--gold)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Chiudi</button>
+      </div>
+    </div>
+  );
+
+  if(done) return(
+    <div style={{position:"fixed",inset:0,background:"rgba(26,24,20,0.6)",backdropFilter:"blur(6px)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div className="scale-in" style={{background:"var(--surface)",borderRadius:"var(--radius-lg)",padding:"2rem",maxWidth:400,width:"90%",textAlign:"center",border:"1px solid var(--border)"}}>
+        <p style={{fontSize:36,marginBottom:12}}>🎉</p>
+        <p style={{fontSize:16,fontWeight:700,marginBottom:8}}>Grazie!</p>
+        <p style={{fontSize:13,color:"var(--text3)"}}>Tutti i feedback sono stati salvati</p>
+      </div>
+    </div>
+  );
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(26,24,20,0.6)",backdropFilter:"blur(6px)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div className="scale-in" style={{background:"var(--surface)",borderRadius:"var(--radius-lg)",maxWidth:520,width:"100%",border:"1px solid var(--border)",boxShadow:"0 24px 80px rgba(26,24,20,0.25)",overflow:"hidden"}}>
+
+        {/* Header */}
+        <div style={{padding:"18px 20px",background:"linear-gradient(135deg,rgba(200,169,110,0.12),rgba(200,169,110,0.04))",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:40,height:40,borderRadius:"50%",background:"var(--gold)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <span style={{fontSize:18,color:"#fff"}}>{IS_EVENING?"🌆":"☀️"}</span>
+          </div>
+          <div style={{flex:1}}>
+            <p style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>{IS_EVENING?"Come è andata oggi?":"Le tue visite di oggi"}</p>
+            <p style={{fontSize:11,color:"var(--text3)"}}>{appts.length} appuntament{appts.length===1?"o":"i"} in agenda · {TODAY}</p>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:"var(--text3)"}}>✕</button>
+        </div>
+
+        {/* Progress bar */}
+        {IS_EVENING&&(
+          <div style={{height:3,background:"var(--bg2)"}}>
+            <div style={{height:"100%",background:"var(--gold)",width:((step)/appts.length*100)+"%",transition:"width .3s"}}/>
+          </div>
+        )}
+
+        <div style={{padding:"20px"}}>
+          {IS_EVENING?(
+            // EVENING MODE: review each appointment
+            currentAppt?(
+              <div>
+                {/* Patient info */}
+                <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px",background:"var(--bg2)",borderRadius:"var(--radius-lg)",marginBottom:18,border:"1px solid var(--border)"}}>
+                  <Av ini={(currentAppt.patient?.name||"?").split(" ").map(function(n){return n[0];}).join("").slice(0,2)} sz={40} col="#c8a96e"/>
+                  <div style={{flex:1}}>
+                    <p style={{fontSize:14,fontWeight:700}}>{currentAppt.patient?.name||"Paziente"}</p>
+                    <p style={{fontSize:12,color:"var(--gold)",fontWeight:600}}>{currentAppt.service}</p>
+                    <p style={{fontSize:11,color:"var(--text3)"}}>{currentAppt.time} · {step+1} di {appts.length}</p>
+                  </div>
+                </div>
+
+                <p style={{fontSize:13,fontWeight:600,marginBottom:12,color:"var(--text)"}}>Come è andata la visita?</p>
+
+                {/* Outcome options */}
+                <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+                  {OUTCOMES.map(function(o){
+                    var sel=outcomes[currentAppt.id]===o.id;
+                    return(
+                      <button key={o.id} onClick={function(){setOutcome(currentAppt.id,o.id);}}
+                        style={{display:"flex",alignItems:"center",gap:10,padding:"11px 14px",borderRadius:"var(--radius-lg)",border:"2px solid "+(sel?o.color:"var(--border)"),background:sel?o.color+"12":"var(--bg)",cursor:"pointer",textAlign:"left",transition:"all .15s"}}>
+                        <span style={{fontSize:16,flexShrink:0}}>{o.icon}</span>
+                        <span style={{fontSize:12,fontWeight:sel?700:400,color:sel?o.color:"var(--text2)"}}>{o.label}</span>
+                        {sel&&<span style={{marginLeft:"auto",fontSize:14,color:o.color}}>✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Note field for "other" */}
+                {outcomes[currentAppt.id]==="other"&&(
+                  <textarea value={notes[currentAppt.id]||""} onChange={function(e){setNotes(function(prev){return Object.assign({},prev,{[currentAppt.id]:e.target.value});});}}
+                    placeholder="Descrivi cosa è successo..."
+                    style={{width:"100%",padding:"10px 12px",borderRadius:"var(--radius)",border:"1px solid var(--border)",background:"var(--bg2)",color:"var(--text)",fontSize:12,resize:"none",fontFamily:"inherit",marginBottom:12}}
+                    rows={3}/>
+                )}
+
+                {/* Navigation */}
+                <div style={{display:"flex",gap:10}}>
+                  {step>0&&(
+                    <button onClick={function(){setStep(step-1);}} style={{padding:"10px 16px",borderRadius:"var(--radius)",background:"var(--bg2)",border:"1px solid var(--border)",color:"var(--text2)",fontSize:12,cursor:"pointer"}}>← Indietro</button>
+                  )}
+                  <button onClick={function(){
+                    if(step<appts.length-1) setStep(step+1);
+                    else saveAll();
+                  }} disabled={!outcomes[currentAppt.id]}
+                    style={{flex:1,padding:"11px",borderRadius:"var(--radius)",background:outcomes[currentAppt.id]?"var(--gold)":"var(--border)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:outcomes[currentAppt.id]?"pointer":"not-allowed",opacity:outcomes[currentAppt.id]?1:0.5}}>
+                    {saving?"Salvataggio...":(step<appts.length-1?"Prossimo paziente →":"Salva tutti i feedback ✓")}
+                  </button>
+                </div>
+              </div>
+            ):null
+          ):(
+            // MORNING MODE: show today's agenda
+            <div>
+              <p style={{fontSize:13,color:"var(--text3)",marginBottom:16}}>Ecco i tuoi appuntamenti di oggi:</p>
+              <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+                {appts.map(function(a){return(
+                  <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:"var(--bg2)",borderRadius:"var(--radius-lg)",border:"1px solid var(--border)"}}>
+                    <div style={{textAlign:"center",flexShrink:0}}>
+                      <p style={{fontSize:14,fontWeight:700,color:"var(--gold)"}}>{a.time}</p>
+                    </div>
+                    <Av ini={(a.patient?.name||"?").split(" ").map(function(n){return n[0];}).join("").slice(0,2)} sz={34} col="#c8a96e"/>
+                    <div style={{flex:1}}>
+                      <p style={{fontSize:13,fontWeight:600}}>{a.patient?.name||"Paziente"}</p>
+                      <p style={{fontSize:11,color:"var(--gold)"}}>{a.service}</p>
+                    </div>
+                    <span style={{fontSize:10,padding:"3px 10px",borderRadius:99,background:"rgba(45,200,137,0.1)",color:"#2dc889",fontWeight:600}}>Confermato</span>
+                  </div>
+                );})}
+              </div>
+              <button onClick={onClose} style={{width:"100%",padding:"12px",borderRadius:"var(--radius)",background:"var(--gold)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Inizia la giornata ✦</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function NoShowBadge({patientId,inline}){
+  var _countState=useState(0);var count=_countState[0];var setCount=_countState[1];
+  useEffect(function(){
+    if(!patientId) return;
+    sb.from("appointments").select("id",{count:"exact"}).eq("patient_id",patientId).eq("no_show",true).then(function(res){
+      if(!res.error) setCount(res.count||0);
+    });
+  },[patientId]);
+  if(count===0) return null;
+  if(inline) return <span style={{fontSize:11,padding:"2px 7px",borderRadius:99,background:"rgba(196,85,53,0.1)",color:"#c45535",border:"1px solid rgba(196,85,53,0.2)",fontWeight:700,marginLeft:6}}>⚠️ {count} no-show</span>;
+  return(
+    <div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:"var(--radius)",background:"rgba(196,85,53,0.08)",border:"1px solid rgba(196,85,53,0.2)",marginBottom:10}}>
+      <span style={{fontSize:14}}>⚠️</span>
+      <span style={{fontSize:12,color:"#c45535",fontWeight:600}}>{count} mancata presentazione{count>1?"i":""} registrata{count>1?"e":""}</span>
+    </div>
+  );
+}
+
+
+function AdminDashboard({user,onLogout}){
+  var _secState=useState("overview");var sec=_secState[0];var setSec=_secState[1];
+
+  var nav=[
+    {id:"overview",icon:"⬡",label:"Panoramica"},
+    {id:"users",icon:"◈",label:"Utenti"},
+    {id:"doctors",icon:"✚",label:"Medici"},
+    {id:"appointments",icon:"◷",label:"Prenotazioni"},
+    {id:"stats",icon:"◎",label:"Statistiche"},
+  ];
+
+  return(
+    <div className="layout-full">
+      <header className="layout-header" style={{background:"var(--bg3)",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",padding:"0 20px",gap:14,zIndex:10}}>
+        <div style={{display:"flex",alignItems:"baseline",gap:2,marginRight:8}}>
+          <span className="serif" style={{fontSize:20,color:"var(--gold)",fontStyle:"italic"}}>Glow</span>
+          <span className="serif" style={{fontSize:20,color:"var(--text)"}}>Up</span>
+          <span style={{fontSize:9,color:"#fff",background:"#c45535",borderRadius:99,padding:"1px 6px",marginLeft:6,fontWeight:700,letterSpacing:"0.05em"}}>ADMIN</span>
+        </div>
+        <div style={{flex:1}}/>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <Av ini="AD" sz={28} col="#c45535"/>
+          <div><p style={{fontSize:11,fontWeight:600,color:"var(--text)"}}>{user.name}</p><p style={{fontSize:9,color:"var(--text3)"}}>Amministratore</p></div>
+          <button onClick={onLogout} style={{fontSize:10,color:"var(--text3)",background:"none",border:"none",padding:"4px 8px",borderRadius:"var(--radius)",cursor:"pointer"}}>Esci</button>
+        </div>
+      </header>
+
+      <div className="layout-sidebar" style={{padding:"1rem 10px"}}>
+        <p style={{fontSize:9,fontWeight:700,letterSpacing:"0.1em",color:"var(--text3)",padding:"6px 14px 10px"}}>AREA ADMIN</p>
+        {nav.map(function(item){return(
+          <button key={item.id} onClick={function(){setSec(item.id);}} className={"dash-nav-item"+(sec===item.id?" active":"")}>
+            <span style={{fontSize:14}}>{item.icon}</span><span style={{flex:1}}>{item.label}</span>
+          </button>
+        );})}
+      </div>
+
+      <div className="layout-content" style={{overflowY:"auto",padding:"1.75rem 2rem",background:"var(--bg)"}}>
+        {sec==="overview"&&<AdminOverview/>}
+        {sec==="users"&&<AdminUsers/>}
+        {sec==="doctors"&&<AdminDoctors/>}
+        {sec==="appointments"&&<AdminAppointments/>}
+        {sec==="stats"&&<AdminStats/>}
+      </div>
+    </div>
+  );
+}
+
+function AdminOverview(){
+  var _statsState=useState({users:0,doctors:0,patients:0,appointments:0,pending:0,revenue:0});
+  var stats=_statsState[0];var setStats=_statsState[1];
+  var _recentState=useState([]);var recent=_recentState[0];var setRecent=_recentState[1];
+
+  useEffect(function(){
+    var load=async function(){
+      var [profRes,apptRes]=await Promise.all([
+        sb.from("profiles").select("type",{count:"exact"}),
+        sb.from("appointments").select("*").order("created_at",{ascending:false}).limit(5)
+      ]);
+      if(!profRes.error&&profRes.data){
+        var docs=profRes.data.filter(function(p){return p.type==="doctor";}).length;
+        var pats=profRes.data.filter(function(p){return p.type==="patient";}).length;
+        setStats(function(s){return Object.assign({},s,{users:profRes.data.length,doctors:docs,patients:pats});});
+      }
+      if(!apptRes.error&&apptRes.data){
+        var pending=apptRes.data.filter(function(a){return a.status==="pending";}).length;
+        setStats(function(s){return Object.assign({},s,{appointments:apptRes.data.length,pending:pending});});
+        setRecent(apptRes.data.slice(0,5));
+      }
+    };
+    load();
+  },[]);
+
+  var cards=[
+    {label:"Utenti totali",value:stats.users,icon:"👥",color:"#5b8dee"},
+    {label:"Medici",value:stats.doctors,icon:"🩺",color:"#2dc889"},
+    {label:"Pazienti",value:stats.patients,icon:"◉",color:"#c8a96e"},
+    {label:"Prenotazioni",value:stats.appointments,icon:"◷",color:"#9b7fd4"},
+    {label:"In attesa",value:stats.pending,icon:"⏳",color:"#e06b4a"},
+  ];
+
+  return(
+    <div className="fade-in">
+      <SecTitle title="Panoramica" sub="Stato generale della piattaforma"/>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,marginBottom:24}}>
+        {cards.map(function(c){return(
+          <Card key={c.label} style={{textAlign:"center",padding:"1.25rem 1rem"}}>
+            <p style={{fontSize:24,marginBottom:6}}>{c.icon}</p>
+            <p style={{fontSize:28,fontWeight:700,color:c.color,fontFamily:"Playfair Display,serif",marginBottom:4}}>{c.value}</p>
+            <p style={{fontSize:11,color:"var(--text3)",fontWeight:600}}>{c.label}</p>
+          </Card>
+        );})}
+      </div>
+      <Card>
+        <p style={{fontSize:13,fontWeight:700,marginBottom:14}}>Ultime prenotazioni</p>
+        {recent.length===0?<p style={{color:"var(--text3)",fontSize:12}}>Nessuna prenotazione</p>:(
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {recent.map(function(a){return(
+              <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px",background:"var(--bg2)",borderRadius:"var(--radius)"}}>
+                <span style={{fontSize:11,padding:"3px 10px",borderRadius:99,background:a.status==="confirmed"?"rgba(45,200,137,0.12)":a.status==="pending"?"rgba(200,169,110,0.12)":"rgba(196,85,53,0.08)",color:a.status==="confirmed"?"#2dc889":a.status==="pending"?"var(--gold)":"#c45535",fontWeight:600}}>{a.status}</span>
+                <p style={{fontSize:12,flex:1}}>{a.service||"—"}</p>
+                <p style={{fontSize:11,color:"var(--text3)"}}>{a.date} {a.time}</p>
+              </div>
+            );})}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function AdminUsers(){
+  var _usersState=useState([]);var users=_usersState[0];var setUsers=_usersState[1];
+  var _loadingState=useState(true);var loading=_loadingState[0];var setLoading=_loadingState[1];
+  var _searchState=useState("");var search=_searchState[0];var setSearch=_searchState[1];
+  var _filterState=useState("all");var filter=_filterState[0];var setFilter=_filterState[1];
+
+  useEffect(function(){
+    sb.from("profiles").select("*").order("created_at",{ascending:false}).then(function(res){
+      if(!res.error&&res.data) setUsers(res.data);
+      setLoading(false);
+    });
+  },[]);
+
+  var toggleType=async function(u,newType){
+    await sb.from("profiles").update({type:newType}).eq("id",u.id);
+    setUsers(function(prev){return prev.map(function(p){return p.id===u.id?Object.assign({},p,{type:newType}):p;});});
+  };
+
+  var filtered=users.filter(function(u){
+    var matchSearch=!search||u.name.toLowerCase().includes(search.toLowerCase())||u.email.toLowerCase().includes(search.toLowerCase());
+    var matchFilter=filter==="all"||u.type===filter;
+    return matchSearch&&matchFilter;
+  });
+
+  return(
+    <div className="fade-in">
+      <SecTitle title="Gestione Utenti" sub={users.length+" utenti registrati"}/>
+      <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center"}}>
+        <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Cerca per nome o email..."
+          style={{flex:1,padding:"8px 12px",borderRadius:"var(--radius)",border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text)",fontSize:12}}/>
+        {["all","patient","doctor","admin"].map(function(f){return(
+          <button key={f} onClick={function(){setFilter(f);}}
+            style={{padding:"6px 14px",borderRadius:99,background:filter===f?"var(--gold)":"var(--surface)",border:"1px solid "+(filter===f?"var(--gold)":"var(--border)"),color:filter===f?"#fff":"var(--text2)",fontSize:11,fontWeight:filter===f?700:400,cursor:"pointer"}}>
+            {f==="all"?"Tutti":f==="patient"?"Pazienti":f==="doctor"?"Medici":"Admin"}
+          </button>
+        );})}
+      </div>
+      {loading?<p style={{color:"var(--text3)",fontSize:12}}>Caricamento...</p>:(
+        <div style={{background:"var(--surface)",borderRadius:"var(--radius-lg)",border:"1px solid var(--border)",overflow:"hidden"}}>
+          <div style={{display:"grid",gridTemplateColumns:"2fr 2fr 1fr 1fr 1fr",padding:"10px 16px",background:"var(--bg2)",borderBottom:"1px solid var(--border)"}}>
+            {["Nome","Email","Tipo","Città","Azioni"].map(function(h){return <p key={h} style={{fontSize:10,color:"var(--text3)",fontWeight:700,letterSpacing:"0.06em"}}>{h.toUpperCase()}</p>;})}
+          </div>
+          {filtered.map(function(u,i){return(
+            <div key={u.id} style={{display:"grid",gridTemplateColumns:"2fr 2fr 1fr 1fr 1fr",padding:"12px 16px",alignItems:"center",borderBottom:i<filtered.length-1?"1px solid var(--border)":"none",background:i%2===0?"transparent":"rgba(0,0,0,0.01)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <Av ini={(u.name||"?").slice(0,2).toUpperCase()} sz={28} col={u.type==="doctor"?"#2dc889":u.type==="admin"?"#c45535":"#c8a96e"}/>
+                <p style={{fontSize:12,fontWeight:600}}>{u.name||"—"}</p>
+              </div>
+              <p style={{fontSize:11,color:"var(--text3)"}}>{u.email||"—"}</p>
+              <span style={{fontSize:10,padding:"3px 10px",borderRadius:99,background:u.type==="doctor"?"rgba(45,200,137,0.1)":u.type==="admin"?"rgba(196,85,53,0.08)":"rgba(200,169,110,0.1)",color:u.type==="doctor"?"#2dc889":u.type==="admin"?"#c45535":"var(--gold)",fontWeight:600,display:"inline-block"}}>
+                {u.type==="doctor"?"Medico":u.type==="admin"?"Admin":"Paziente"}
+              </span>
+              <p style={{fontSize:11,color:"var(--text3)"}}>{u.city||"—"}</p>
+              <div style={{display:"flex",gap:6}}>
+                {u.type==="patient"&&<button onClick={function(){toggleType(u,"doctor");}} style={{fontSize:9,padding:"3px 8px",borderRadius:99,background:"rgba(45,200,137,0.1)",border:"1px solid rgba(45,200,137,0.2)",color:"#2dc889",cursor:"pointer",fontWeight:600}}>→ Medico</button>}
+                {u.type==="doctor"&&<button onClick={function(){toggleType(u,"patient");}} style={{fontSize:9,padding:"3px 8px",borderRadius:99,background:"rgba(200,169,110,0.1)",border:"1px solid rgba(200,169,110,0.2)",color:"var(--gold)",cursor:"pointer",fontWeight:600}}>→ Paziente</button>}
+              </div>
+            </div>
+          );})}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminDoctors(){
+  var _docsState=useState([]);var docs=_docsState[0];var setDocs=_docsState[1];
+  var _loadingState=useState(true);var loading=_loadingState[0];var setLoading=_loadingState[1];
+
+  useEffect(function(){
+    sb.from("doctor_profiles").select("*, profile:profiles!doctor_profiles_id_fkey(id,name,email,city)").order("created_at",{ascending:false}).then(function(res){
+      if(!res.error&&res.data) setDocs(res.data);
+      setLoading(false);
+    });
+  },[]);
+
+  var toggleAvailable=async function(doc){
+    await sb.from("doctor_profiles").update({available:!doc.available}).eq("id",doc.id);
+    setDocs(function(prev){return prev.map(function(d){return d.id===doc.id?Object.assign({},d,{available:!doc.available}):d;});});
+  };
+
+  return(
+    <div className="fade-in">
+      <SecTitle title="Gestione Medici" sub={docs.length+" profili medico"}/>
+      {loading?<p style={{color:"var(--text3)",fontSize:12}}>Caricamento...</p>:(
+        <div style={{background:"var(--surface)",borderRadius:"var(--radius-lg)",border:"1px solid var(--border)",overflow:"hidden"}}>
+          <div style={{display:"grid",gridTemplateColumns:"2fr 1.5fr 1fr 1fr 1fr 1fr",padding:"10px 16px",background:"var(--bg2)",borderBottom:"1px solid var(--border)"}}>
+            {["Medico","Specializzazione","Prezzo","Servizi","Disponibile","Azioni"].map(function(h){return <p key={h} style={{fontSize:10,color:"var(--text3)",fontWeight:700,letterSpacing:"0.06em"}}>{h.toUpperCase()}</p>;})}
+          </div>
+          {docs.map(function(d,i){
+            var name=d.profile?d.profile.name:"—";
+            var ini=name.split(" ").map(function(n){return n[0];}).join("").slice(0,2).toUpperCase();
+            return(
+              <div key={d.id} style={{display:"grid",gridTemplateColumns:"2fr 1.5fr 1fr 1fr 1fr 1fr",padding:"12px 16px",alignItems:"center",borderBottom:i<docs.length-1?"1px solid var(--border)":"none"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <Av ini={ini} sz={30} col="#2dc889"/>
+                  <div>
+                    <p style={{fontSize:12,fontWeight:600}}>{name}</p>
+                    <p style={{fontSize:10,color:"var(--text3)"}}>{d.profile?d.profile.email:"—"}</p>
+                  </div>
+                </div>
+                <p style={{fontSize:11,color:"var(--text2)"}}>{d.specialty||"—"}</p>
+                <p style={{fontSize:12,fontWeight:600,color:"var(--gold)"}}>€{d.price||"—"}</p>
+                <p style={{fontSize:11,color:"var(--text3)"}}>{(d.services||[]).length} servizi</p>
+                <span style={{fontSize:10,padding:"3px 10px",borderRadius:99,background:d.available?"rgba(45,200,137,0.1)":"rgba(196,85,53,0.08)",color:d.available?"#2dc889":"#c45535",fontWeight:600,display:"inline-block"}}>
+                  {d.available?"● Attivo":"○ Inattivo"}
+                </span>
+                <button onClick={function(){toggleAvailable(d);}}
+                  style={{fontSize:10,padding:"4px 10px",borderRadius:99,background:"var(--bg2)",border:"1px solid var(--border)",color:"var(--text2)",cursor:"pointer",fontWeight:600}}>
+                  {d.available?"Disattiva":"Attiva"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminAppointments(){
+  var _apptState=useState([]);var appts=_apptState[0];var setAppts=_apptState[1];
+  var _loadingState=useState(true);var loading=_loadingState[0];var setLoading=_loadingState[1];
+  var _filterState=useState("all");var filter=_filterState[0];var setFilter=_filterState[1];
+
+  useEffect(function(){
+    sb.from("appointments").select("*").order("created_at",{ascending:false}).limit(100).then(function(res){
+      if(!res.error&&res.data) setAppts(res.data);
+      setLoading(false);
+    });
+  },[]);
+
+  var filtered=filter==="all"?appts:appts.filter(function(a){return a.status===filter;});
+  var STATUS_COLORS={confirmed:"#2dc889",pending:"var(--gold)",cancelled:"#c45535",reschedule_proposed:"#5b8dee"};
+
+  return(
+    <div className="fade-in">
+      <SecTitle title="Prenotazioni" sub={appts.length+" prenotazioni totali"}/>
+      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+        {["all","pending","confirmed","cancelled"].map(function(f){
+          var count=f==="all"?appts.length:appts.filter(function(a){return a.status===f;}).length;
+          return(
+            <button key={f} onClick={function(){setFilter(f);}}
+              style={{padding:"6px 14px",borderRadius:99,background:filter===f?"var(--gold)":"var(--surface)",border:"1px solid "+(filter===f?"var(--gold)":"var(--border)"),color:filter===f?"#fff":"var(--text2)",fontSize:11,fontWeight:filter===f?700:400,cursor:"pointer"}}>
+              {f==="all"?"Tutti":f==="pending"?"In attesa":f==="confirmed"?"Confermati":"Cancellati"} ({count})
+            </button>
+          );
+        })}
+      </div>
+      {loading?<p style={{color:"var(--text3)",fontSize:12}}>Caricamento...</p>:(
+        <div style={{background:"var(--surface)",borderRadius:"var(--radius-lg)",border:"1px solid var(--border)",overflow:"hidden"}}>
+          <div style={{display:"grid",gridTemplateColumns:"2fr 1.5fr 1.5fr 1fr 1fr",padding:"10px 16px",background:"var(--bg2)",borderBottom:"1px solid var(--border)"}}>
+            {["Servizio","Data","Stato","Medico ID","Paziente ID"].map(function(h){return <p key={h} style={{fontSize:10,color:"var(--text3)",fontWeight:700,letterSpacing:"0.06em"}}>{h.toUpperCase()}</p>;})}
+          </div>
+          {filtered.slice(0,50).map(function(a,i){return(
+            <div key={a.id} style={{display:"grid",gridTemplateColumns:"2fr 1.5fr 1.5fr 1fr 1fr",padding:"11px 16px",alignItems:"center",borderBottom:i<filtered.length-1?"1px solid var(--border)":"none",background:i%2===0?"transparent":"rgba(0,0,0,0.01)"}}>
+              <p style={{fontSize:12,fontWeight:600}}>{a.service||"—"}</p>
+              <p style={{fontSize:11,color:"var(--text2)"}}>{a.date} {a.time}</p>
+              <span style={{fontSize:10,padding:"3px 10px",borderRadius:99,background:(STATUS_COLORS[a.status]||"#888")+"18",color:STATUS_COLORS[a.status]||"var(--text3)",fontWeight:600,display:"inline-block"}}>{a.status}</span>
+              <p style={{fontSize:10,color:"var(--text3)",overflow:"hidden",textOverflow:"ellipsis"}}>{(a.doctor_id||"").slice(0,8)}...</p>
+              <p style={{fontSize:10,color:"var(--text3)",overflow:"hidden",textOverflow:"ellipsis"}}>{(a.patient_id||"").slice(0,8)}...</p>
+            </div>
+          );})}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminStats(){
+  var _dataState=useState({byService:{},byStatus:{},byMonth:{}});var data=_dataState[0];var setData=_dataState[1];
+  var _loadingState=useState(true);var loading=_loadingState[0];var setLoading=_loadingState[1];
+
+  useEffect(function(){
+    sb.from("appointments").select("service,status,created_at,date").then(function(res){
+      if(!res.error&&res.data){
+        var byService={};var byStatus={};var byMonth={};
+        res.data.forEach(function(a){
+          if(a.service) byService[a.service]=(byService[a.service]||0)+1;
+          if(a.status) byStatus[a.status]=(byStatus[a.status]||0)+1;
+          var month=(a.date||a.created_at||"").slice(0,7);
+          if(month) byMonth[month]=(byMonth[month]||0)+1;
+        });
+        setData({byService:byService,byStatus:byStatus,byMonth:byMonth});
+      }
+      setLoading(false);
+    });
+  },[]);
+
+  var topServices=Object.entries(data.byService).sort(function(a,b){return b[1]-a[1];}).slice(0,10);
+  var maxSvc=topServices.length>0?topServices[0][1]:1;
+  var months=Object.entries(data.byMonth).sort(function(a,b){return a[0]>b[0]?1:-1;}).slice(-6);
+  var maxMonth=months.length>0?Math.max.apply(null,months.map(function(m){return m[1];})):1;
+
+  return(
+    <div className="fade-in">
+      <SecTitle title="Statistiche" sub="Analisi delle prenotazioni"/>
+      {loading?<p style={{color:"var(--text3)",fontSize:12}}>Caricamento...</p>:(
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+          {/* Top servizi */}
+          <Card>
+            <p style={{fontSize:13,fontWeight:700,marginBottom:16}}>Top servizi prenotati</p>
+            {topServices.length===0?<p style={{color:"var(--text3)",fontSize:12}}>Nessun dato</p>:(
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {topServices.map(function(s){return(
+                  <div key={s[0]}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                      <p style={{fontSize:11,color:"var(--text2)"}}>{s[0]}</p>
+                      <p style={{fontSize:11,fontWeight:700,color:"var(--gold)"}}>{s[1]}</p>
+                    </div>
+                    <div style={{height:4,background:"var(--bg2)",borderRadius:2}}>
+                      <div style={{height:"100%",borderRadius:2,background:"var(--gold)",width:(s[1]/maxSvc*100)+"%",transition:"width .5s"}}/>
+                    </div>
+                  </div>
+                );})}
+              </div>
+            )}
+          </Card>
+          {/* Stato prenotazioni */}
+          <Card>
+            <p style={{fontSize:13,fontWeight:700,marginBottom:16}}>Stato prenotazioni</p>
+            {Object.entries(data.byStatus).map(function(s){
+              var colors={confirmed:"#2dc889",pending:"var(--gold)",cancelled:"#c45535"};
+              var tot=Object.values(data.byStatus).reduce(function(a,b){return a+b;},0);
+              return(
+                <div key={s[0]} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                  <div style={{width:10,height:10,borderRadius:"50%",background:colors[s[0]]||"#888",flexShrink:0}}/>
+                  <p style={{fontSize:12,flex:1,color:"var(--text2)"}}>{s[0]}</p>
+                  <p style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>{s[1]}</p>
+                  <p style={{fontSize:10,color:"var(--text3)"}}>{Math.round(s[1]/tot*100)}%</p>
+                </div>
+              );
+            })}
+          </Card>
+          {/* Andamento mensile */}
+          <Card style={{gridColumn:"1/-1"}}>
+            <p style={{fontSize:13,fontWeight:700,marginBottom:16}}>Prenotazioni per mese</p>
+            {months.length===0?<p style={{color:"var(--text3)",fontSize:12}}>Nessun dato</p>:(
+              <div style={{display:"flex",gap:8,alignItems:"flex-end",height:120}}>
+                {months.map(function(m){return(
+                  <div key={m[0]} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                    <p style={{fontSize:10,fontWeight:700,color:"var(--gold)"}}>{m[1]}</p>
+                    <div style={{width:"100%",background:"var(--gold)",borderRadius:"4px 4px 0 0",height:(m[1]/maxMonth*80)+"px",minHeight:4,transition:"height .5s"}}/>
+                    <p style={{fontSize:9,color:"var(--text3)"}}>{m[0].slice(5)}/{m[0].slice(2,4)}</p>
+                  </div>
+                );})}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function App(){
   var _pageState=useState("home");var page=_pageState[0];var setPage=_pageState[1];
   var _docPageState=useState(null);var docPage=_docPageState[0];var setDocPage=_docPageState[1];
@@ -6740,7 +7350,11 @@ function App(){
 
   if(page==="login") return <div style={{display:"flex",flexDirection:"column",height:"100vh"}}><Header user={null} onLogout={logout} nav={setPage} cur="login"/><LoginPage onLogin={login} nav={setPage}/></div>;
   if(page==="register") return <div style={{display:"flex",flexDirection:"column",height:"100vh"}}><Header user={null} onLogout={logout} nav={setPage} cur="register"/><RegisterPage onLogin={login} nav={setPage}/></div>;
-  if(user&&page==="dashboard") return user.type==="doctor"?<DocDashboard user={user}/>:<PatDashboard user={user} nav={setPage} uiState={ui} onUiUpdate={updUi} bookDoc={bookDoc} setBookDoc={setBookDoc} viewDoc={viewDoc} setViewDoc={setViewDoc} chatTarget={chatTarget} onChatOpen={function(){setChatTarget(null);}}/>;
+  if(user&&page==="dashboard"){
+    if(user.type==="admin") return <AdminDashboard user={user} onLogout={logout}/>;
+    if(user.type==="doctor") return <DocDashboard user={user}/>;
+    return <PatDashboard user={user} nav={setPage} uiState={ui} onUiUpdate={updUi} bookDoc={bookDoc} setBookDoc={setBookDoc} viewDoc={viewDoc} setViewDoc={setViewDoc} chatTarget={chatTarget} onChatOpen={function(){setChatTarget(null);}}/>;
+  }
   return null;
 }
 
