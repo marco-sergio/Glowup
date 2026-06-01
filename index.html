@@ -6703,20 +6703,23 @@ function PatientStatsCard({patientId,compact,showFull}){
       if(!res.error&&res.data){
         var all=res.data;
         var total=all.length;
-        var completed=all.filter(function(a){return a.status==="confirmed"||a.visit_outcome;}).length;
-        var noShows=all.filter(function(a){return a.no_show===true;}).length;
-        var noShowsUnwarned=all.filter(function(a){return a.no_show===true&&!a.no_show_warned;}).length;
+        var completed=all.filter(function(a){return a.visit_outcome&&a.visit_outcome!=="noshow"&&a.visit_outcome!=="noshow_warned";}).length;
+        var noShowsUnwarned=all.filter(function(a){return a.visit_outcome==="noshow"||(a.no_show===true&&!a.no_show_warned);}).length;
+        var noShowsWarned=all.filter(function(a){return a.visit_outcome==="noshow_warned"||(a.no_show===true&&a.no_show_warned);}).length;
+        var noShows=noShowsUnwarned+noShowsWarned;
+        var score=completed-(noShowsWarned*1)-(noShowsUnwarned*2);
+        var maxScore=total;
         var sorted=all.filter(function(a){return a.date;}).sort(function(a,b){return b.date>a.date?1:-1;});
         var lastDate=sorted.length>0?sorted[0].date:null;
         var lastService=sorted.length>0?sorted[0].service:null;
-        setStats({total_requests:total,completed_visits:completed,no_shows:noShows,no_shows_unwarned:noShowsUnwarned,last_visit_date:lastDate,last_service:lastService});
+        setStats({total_requests:total,completed_visits:completed,no_shows:noShows,no_shows_unwarned:noShowsUnwarned,no_shows_warned:noShowsWarned,score:score,max_score:maxScore,last_visit_date:lastDate,last_service:lastService});
       }
     });
   },[patientId]);
 
   if(!stats) return null;
 
-  var reliability=stats.total_requests>0?Math.round((stats.completed_visits/stats.total_requests)*100):100;
+  var reliability=stats.max_score>0?Math.max(0,Math.round((stats.score/stats.max_score)*100)):100;
   var reliabilityColor=reliability>=80?"#2dc889":reliability>=50?"var(--gold)":"#c45535";
 
   if(compact) return(
@@ -6746,7 +6749,7 @@ function PatientStatsCard({patientId,compact,showFull}){
       </div>
       {stats.no_shows>0&&(
         <div style={{padding:"8px 12px",background:"rgba(196,85,53,0.06)",borderRadius:"var(--radius)",border:"1px solid rgba(196,85,53,0.15)",fontSize:11,color:"#c45535"}}>
-          ⚠️ {stats.no_shows_unwarned} senza preavviso · {stats.no_shows-stats.no_shows_unwarned} con preavviso
+          ⚠️ {stats.no_shows_unwarned} senza preavviso (peso ×2) · {stats.no_shows_warned} con preavviso (peso ×1)
         </div>
       )}
       {stats.last_visit_date&&(
@@ -6764,20 +6767,24 @@ function PatientSummaryBadge({patientId}){
 
   useEffect(function(){
     if(!patientId) return;
-    sb.from("appointments").select("id,status,no_show,visit_outcome").eq("patient_id",patientId).then(function(res){
+    sb.from("appointments").select("id,status,no_show,no_show_warned,visit_outcome").eq("patient_id",patientId).then(function(res){
       if(!res.error&&res.data){
         var all=res.data;
         var total=all.length;
-        var completed=all.filter(function(a){return a.status==="confirmed"||a.visit_outcome;}).length;
-        var noShows=all.filter(function(a){return a.no_show===true;}).length;
-        setStats({total_requests:total,completed_visits:completed,no_shows:noShows});
+        var completed=all.filter(function(a){return a.visit_outcome&&a.visit_outcome!=="noshow"&&a.visit_outcome!=="noshow_warned";}).length;
+        var noShowsUnwarned=all.filter(function(a){return a.visit_outcome==="noshow"||(a.no_show===true&&!a.no_show_warned);}).length;
+        var noShowsWarned=all.filter(function(a){return a.visit_outcome==="noshow_warned"||(a.no_show===true&&a.no_show_warned);}).length;
+        var noShows=noShowsUnwarned+noShowsWarned;
+        var score=completed-(noShowsWarned*1)-(noShowsUnwarned*2);
+        var maxScore=total;
+        setStats({total_requests:total,completed_visits:completed,no_shows:noShows,score:score,max_score:maxScore});
       }
     });
   },[patientId]);
 
   if(!stats||stats.total_requests===0) return null;
 
-  var reliability=stats.total_requests>0?Math.round((stats.completed_visits/stats.total_requests)*100):100;
+  var reliability=stats.max_score>0?Math.max(0,Math.round((stats.score/stats.max_score)*100)):100;
   var reliabilityColor=reliability>=80?"#2dc889":reliability>=60?"var(--gold)":"#c45535";
   var hasNoShow=stats.no_shows>0;
 
@@ -6820,6 +6827,7 @@ function DailyReminderPopup({user,onClose}){
     {id:"budget",label:"Problema di budget",icon:"💶",color:"#c8a96e"},
     {id:"noshow_warned",label:"Non si è presentato ma aveva avvisato",icon:"📞",color:"#e06b4a"},
     {id:"noshow",label:"Non si è presentato e non ha avvisato",icon:"⚠️",color:"#c45535"},
+    {id:"rescheduled",label:"Abbiamo accordato una nuova data",icon:"📅",color:"#3d6fd4"},
     {id:"other",label:"Altro",icon:"📝",color:"#9b7fd4"},
   ];
 
