@@ -2035,20 +2035,37 @@ function DocDashboard({user}){
   // Expose reminder trigger globally
   useEffect(function(){window._showReminder=function(){setShowReminder(true);}; return function(){window._showReminder=null;};},[]);
 
-  // Show reminder popup: morning (8-10) or evening (17-20)
+  // Show reminder popup if there are unreviewed past appointments
   useEffect(function(){
     if(reminderChecked) return;
-    var hour=new Date().getHours();
-    var shouldShow=(hour>=8&&hour<=10)||(hour>=17&&hour<=20);
-    if(shouldShow){
-      var key="glowup_reminder_"+new Date().toISOString().slice(0,10)+"_"+(hour>=17?"eve":"morn");
-      if(!localStorage.getItem(key)){
-        setShowReminder(true);
-        localStorage.setItem(key,"1");
-      }
-    }
     setReminderChecked(true);
-  },[reminderChecked]);
+    var TODAY=new Date().toISOString().slice(0,10);
+    sb.from("appointments")
+      .select("id")
+      .eq("doctor_id",user.id)
+      .in("status",["confirmed","pending"])
+      .lt("date",TODAY)
+      .is("visit_outcome",null)
+      .limit(1)
+      .then(function(res){
+        if(!res.error&&res.data&&res.data.length>0){
+          // Ci sono appuntamenti passati senza esito → mostra sempre
+          setShowReminder(true);
+        } else {
+          // Nessun arretrato → mostra solo nelle fasce orarie
+          var hour=new Date().getHours();
+          var isToday=(hour>=17&&hour<=23);
+          var isMorning=(hour>=8&&hour<=10);
+          if(isToday||isMorning){
+            var key="glowup_reminder_"+TODAY+"_"+(hour>=17?"eve":"morn");
+            if(!localStorage.getItem(key)){
+              setShowReminder(true);
+              localStorage.setItem(key,"1");
+            }
+          }
+        }
+      });
+  },[reminderChecked,user]);
 
   useEffect(function(){
     if(!user||!user.id) return;
@@ -6673,7 +6690,7 @@ function DailyReminderPopup({user,onClose}){
   var HOUR=new Date().getHours();
   var IS_EVENING=HOUR>=17;
 
-  var _modeState=useState(IS_EVENING?"evening":"morning");var mode=_modeState[0];
+  var _modeState=useState(IS_EVENING?"evening":"morning");var mode=_modeState[0];var setMode=_modeState[1];
   var _apptsState=useState([]);var appts=_apptsState[0];var setAppts=_apptsState[1];
   var _loadingState=useState(true);var loading=_loadingState[0];var setLoading=_loadingState[1];
   var _stepState=useState(0);var step=_stepState[0];var setStep=_stepState[1];
@@ -6692,16 +6709,34 @@ function DailyReminderPopup({user,onClose}){
   ];
 
   useEffect(function(){
-    sb.from("appointments")
-      .select("*, patient:profiles!appointments_patient_id_fkey(id,name)")
-      .eq("doctor_id",user.id)
-      .eq("date",TODAY)
-      .in("status",["confirmed","pending"])
-      .order("time",{ascending:true})
-      .then(function(res){
-        if(!res.error&&res.data) setAppts(res.data);
-        setLoading(false);
-      });
+    var load=async function(){
+      // Prima carica gli arretrati (passati senza esito)
+      var pastRes=await sb.from("appointments")
+        .select("*, patient:profiles!appointments_patient_id_fkey(id,name)")
+        .eq("doctor_id",user.id)
+        .in("status",["confirmed","pending"])
+        .lt("date",TODAY)
+        .is("visit_outcome",null)
+        .order("date",{ascending:false})
+        .limit(20);
+      // Poi carica quelli di oggi
+      var todayRes=await sb.from("appointments")
+        .select("*, patient:profiles!appointments_patient_id_fkey(id,name)")
+        .eq("doctor_id",user.id)
+        .eq("date",TODAY)
+        .in("status",["confirmed","pending"])
+        .is("visit_outcome",null)
+        .order("time",{ascending:true});
+      var all=[];
+      if(!pastRes.error&&pastRes.data) all=[...pastRes.data];
+      if(!todayRes.error&&todayRes.data) all=[...all,...todayRes.data];
+      // Deduplica
+      var seen={};
+      all=all.filter(function(a){if(seen[a.id])return false;seen[a.id]=true;return true;});
+      setAppts(all);
+      setLoading(false);
+    };
+    load();
   },[user,TODAY]);
 
   var currentAppt=appts[step];
@@ -6772,7 +6807,7 @@ function DailyReminderPopup({user,onClose}){
           </div>
           <div style={{flex:1}}>
             <p style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>{IS_EVENING?"Come è andata oggi?":"Le tue visite di oggi"}</p>
-            <p style={{fontSize:11,color:"var(--text3)"}}>{appts.length} appuntament{appts.length===1?"o":"i"} in agenda · {TODAY}</p>
+            <p style={{fontSize:11,color:"var(--text3)"}}>{appts.length} visit{appts.length===1?"a":"e"} da esitare</p>
           </div>
           <button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:"var(--text3)"}}>✕</button>
         </div>
@@ -6840,25 +6875,41 @@ function DailyReminderPopup({user,onClose}){
               </div>
             ):null
           ):(
-            // MORNING MODE: show today's agenda
+            // MORNING/DEFAULT MODE: show unreviewed + today
             <div>
-              <p style={{fontSize:13,color:"var(--text3)",marginBottom:16}}>Ecco i tuoi appuntamenti di oggi:</p>
-              <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
-                {appts.map(function(a){return(
-                  <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:"var(--bg2)",borderRadius:"var(--radius-lg)",border:"1px solid var(--border)"}}>
-                    <div style={{textAlign:"center",flexShrink:0}}>
-                      <p style={{fontSize:14,fontWeight:700,color:"var(--gold)"}}>{a.time}</p>
+              {appts.filter(function(a){return a.date<TODAY;}).length>0&&(
+                <div style={{padding:"10px 12px",background:"rgba(196,85,53,0.08)",borderRadius:"var(--radius)",border:"1px solid rgba(196,85,53,0.2)",marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:14}}>⚠️</span>
+                  <p style={{fontSize:12,color:"#c45535",fontWeight:600}}>{appts.filter(function(a){return a.date<TODAY;}).length} visit{appts.filter(function(a){return a.date<TODAY;}).length===1?"a precedente":"e precedenti"} senza esito — da completare</p>
+                </div>
+              )}
+              <p style={{fontSize:13,color:"var(--text3)",marginBottom:12}}>Visite da esitare:</p>
+              <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20,maxHeight:320,overflowY:"auto"}}>
+                {appts.map(function(a){
+                  var isPast=a.date<TODAY;
+                  return(
+                    <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:isPast?"rgba(196,85,53,0.04)":"var(--bg2)",borderRadius:"var(--radius-lg)",border:"1px solid "+(isPast?"rgba(196,85,53,0.2)":"var(--border)")}}>
+                      <div style={{textAlign:"center",flexShrink:0,minWidth:44}}>
+                        {isPast?<p style={{fontSize:9,color:"#c45535",fontWeight:700}}>⚠️ {a.date}</p>:<p style={{fontSize:14,fontWeight:700,color:"var(--gold)"}}>{a.time}</p>}
+                      </div>
+                      <Av ini={(a.patient&&a.patient.name||"?").split(" ").map(function(n){return n[0];}).join("").slice(0,2)} sz={34} col="#c8a96e"/>
+                      <div style={{flex:1}}>
+                        <p style={{fontSize:13,fontWeight:600}}>{a.patient&&a.patient.name||"Paziente"}</p>
+                        <p style={{fontSize:11,color:"var(--gold)"}}>{a.service}</p>
+                      </div>
+                      {isPast?<span style={{fontSize:10,padding:"3px 10px",borderRadius:99,background:"rgba(196,85,53,0.1)",color:"#c45535",fontWeight:600}}>Da esitare</span>:<span style={{fontSize:10,padding:"3px 10px",borderRadius:99,background:"rgba(45,200,137,0.1)",color:"#2dc889",fontWeight:600}}>Oggi</span>}
                     </div>
-                    <Av ini={(a.patient?.name||"?").split(" ").map(function(n){return n[0];}).join("").slice(0,2)} sz={34} col="#c8a96e"/>
-                    <div style={{flex:1}}>
-                      <p style={{fontSize:13,fontWeight:600}}>{a.patient?.name||"Paziente"}</p>
-                      <p style={{fontSize:11,color:"var(--gold)"}}>{a.service}</p>
-                    </div>
-                    <span style={{fontSize:10,padding:"3px 10px",borderRadius:99,background:"rgba(45,200,137,0.1)",color:"#2dc889",fontWeight:600}}>Confermato</span>
-                  </div>
-                );})}
+                  );
+                })}
               </div>
-              <button onClick={onClose} style={{width:"100%",padding:"12px",borderRadius:"var(--radius)",background:"var(--gold)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Inizia la giornata ✦</button>
+              <div style={{display:"flex",gap:10}}>
+                <button onClick={function(){setMode("evening");}} style={{flex:2,padding:"12px",borderRadius:"var(--radius)",background:"var(--gold)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                  Esita le visite →
+                </button>
+                <button onClick={onClose} style={{flex:1,padding:"12px",borderRadius:"var(--radius)",background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text2)",fontSize:12,cursor:"pointer"}}>
+                  Dopo
+                </button>
+              </div>
             </div>
           )}
         </div>
