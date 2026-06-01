@@ -7096,7 +7096,6 @@ function PatientSummaryBadge({patientId}){
         {label:"Richieste",value:stats.total_requests,icon:"📋",color:"var(--text2)"},
         {label:"Visite",value:stats.completed_visits,icon:"📅",color:"var(--gold)"},
         {label:"No-show",value:stats.no_shows,icon:hasNoShow?"⚠️":"✅",color:hasNoShow?"#c45535":"#2dc889"},
-        {label:"Affidabilità",value:reliability+"%",icon:"🎯",color:reliabilityColor},
       ].map(function(s){return(
         <div key={s.label} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:99,background:"var(--bg2)",border:"1px solid var(--border)"}}>
           <span style={{fontSize:11}}>{s.icon}</span>
