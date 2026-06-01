@@ -4021,6 +4021,29 @@ function DocPatients({user}){
 }
 
 
+
+// ─── RELIABILITY CALCULATOR (credit system) ───────────────────────────────────
+function calcReliability(appointments){
+  // Crediti iniziali 8, denominatore base 10 → paziente nuovo parte a 80% 🟢
+  // 1° no-show senza preavviso → max ~55% 🟡 (non crolla in rosso)
+  // Solo dal 2° no-show consecutivo entra in rosso
+  var INITIAL_CREDITS=8;
+  var BASE_MAX=10;
+  var esitati=appointments.filter(function(a){return a.visit_outcome;});
+  if(esitati.length===0) return {score:80,credits:INITIAL_CREDITS,maxCredits:BASE_MAX,esitati:0};
+  var delta=0;
+  esitati.forEach(function(a){
+    var o=a.visit_outcome;
+    if(o==="noshow") delta-=2;
+    else if(o==="noshow_warned") delta-=1;
+    else delta+=1;
+  });
+  var credits=INITIAL_CREDITS+delta;
+  var maxCredits=BASE_MAX+esitati.length;
+  var score=Math.max(0,Math.round((credits/maxCredits)*100));
+  return {score:score,credits:credits,maxCredits:maxCredits,esitati:esitati.length};
+}
+
 // ─── SLOT RISK PANEL ──────────────────────────────────────────────────────────
 function SlotRiskPanel({appointment, doctorId, patientId, patientName}){
   var _reliabilityState=useState(null);var reliability=_reliabilityState[0];var setReliability=_reliabilityState[1];
@@ -4038,18 +4061,9 @@ function SlotRiskPanel({appointment, doctorId, patientId, patientName}){
   useEffect(function(){
     if(!patientId) return;
     sb.from("appointments").select("id,visit_outcome,no_show,no_show_warned").eq("patient_id",patientId).then(function(res){
-      if(!res.error&&res.data&&res.data.length>0){
-        var all=res.data;
-        var esitati=all.filter(function(a){return a.visit_outcome;});
-        if(esitati.length===0){setReliability(null);return;}
-        var completed=esitati.filter(function(a){return a.visit_outcome!=="noshow"&&a.visit_outcome!=="noshow_warned";}).length;
-        var noShowsUnwarned=esitati.filter(function(a){return a.visit_outcome==="noshow"||(a.no_show===true&&!a.no_show_warned);}).length;
-        var noShowsWarned=esitati.filter(function(a){return a.visit_outcome==="noshow_warned"||(a.no_show===true&&a.no_show_warned);}).length;
-        var score=completed-(noShowsWarned*1)-(noShowsUnwarned*2);
-        var rel=esitati.length>0?Math.max(0,Math.round((score/esitati.length)*100)):100;
-        setReliability(rel);
-      } else {
-        setReliability(null);
+      if(!res.error&&res.data){
+        var result=calcReliability(res.data);
+        setReliability(result.score); // null se nessun esito
       }
     });
   },[patientId]);
@@ -6991,24 +7005,24 @@ function PatientStatsCard({patientId,compact,showFull}){
       if(!res.error&&res.data){
         var all=res.data;
         var total=all.length;
-        var completed=all.filter(function(a){return a.visit_outcome&&a.visit_outcome!=="noshow"&&a.visit_outcome!=="noshow_warned";}).length;
-        var noShowsUnwarned=all.filter(function(a){return a.visit_outcome==="noshow"||(a.no_show===true&&!a.no_show_warned);}).length;
-        var noShowsWarned=all.filter(function(a){return a.visit_outcome==="noshow_warned"||(a.no_show===true&&a.no_show_warned);}).length;
+        var esitati=all.filter(function(a){return a.visit_outcome;});
+        var completed=esitati.filter(function(a){return a.visit_outcome!=="noshow"&&a.visit_outcome!=="noshow_warned";}).length;
+        var noShowsUnwarned=esitati.filter(function(a){return a.visit_outcome==="noshow"||(a.no_show===true&&!a.no_show_warned);}).length;
+        var noShowsWarned=esitati.filter(function(a){return a.visit_outcome==="noshow_warned"||(a.no_show===true&&a.no_show_warned);}).length;
         var noShows=noShowsUnwarned+noShowsWarned;
-        var score=completed-(noShowsWarned*1)-(noShowsUnwarned*2);
-        var maxScore=total;
+        var rel=calcReliability(all);
         var sorted=all.filter(function(a){return a.date;}).sort(function(a,b){return b.date>a.date?1:-1;});
         var lastDate=sorted.length>0?sorted[0].date:null;
         var lastService=sorted.length>0?sorted[0].service:null;
-        setStats({total_requests:total,completed_visits:completed,no_shows:noShows,no_shows_unwarned:noShowsUnwarned,no_shows_warned:noShowsWarned,score:score,max_score:maxScore,last_visit_date:lastDate,last_service:lastService});
+        setStats({total_requests:total,completed_visits:completed,no_shows:noShows,no_shows_unwarned:noShowsUnwarned,no_shows_warned:noShowsWarned,score:rel.score,max_score:rel.maxCredits,credits:rel.credits,last_visit_date:lastDate,last_service:lastService});
       }
     });
   },[patientId]);
 
   if(!stats) return null;
 
-  var reliability=stats.max_score>0?Math.max(0,Math.round((stats.score/stats.max_score)*100)):100;
-  var reliabilityColor=reliability>=80?"#2dc889":reliability>=50?"var(--gold)":"#c45535";
+  var reliability=stats.max_score>0?Math.max(0,Math.round((stats.score/stats.max_score)*100)):null;
+  var reliabilityColor=reliability===null?"var(--text3)":reliability>=80?"#2dc889":reliability>=50?"var(--gold)":"#c45535";
 
   if(compact) return(
     <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
@@ -7026,7 +7040,7 @@ function PatientStatsCard({patientId,compact,showFull}){
           {icon:"📅",label:"Visite",value:stats.completed_visits,color:"var(--gold)"},
           {icon:"📋",label:"Richieste",value:stats.total_requests,color:"var(--text2)"},
           {icon:"⚠️",label:"No-show",value:stats.no_shows,color:stats.no_shows>0?"#c45535":"#2dc889"},
-          {icon:"🎯",label:"Affidabilità",value:reliability+"%",color:reliabilityColor},
+          {icon:"🎯",label:"Affidabilità",value:reliability!==null?reliability+"%":"—",color:reliabilityColor},
         ].map(function(s){return(
           <div key={s.label} style={{textAlign:"center",padding:"10px 6px",background:"var(--bg2)",borderRadius:"var(--radius)"}}>
             <p style={{fontSize:16,marginBottom:4}}>{s.icon}</p>
@@ -7059,21 +7073,22 @@ function PatientSummaryBadge({patientId}){
       if(!res.error&&res.data){
         var all=res.data;
         var total=all.length;
-        var completed=all.filter(function(a){return a.visit_outcome&&a.visit_outcome!=="noshow"&&a.visit_outcome!=="noshow_warned";}).length;
-        var noShowsUnwarned=all.filter(function(a){return a.visit_outcome==="noshow"||(a.no_show===true&&!a.no_show_warned);}).length;
-        var noShowsWarned=all.filter(function(a){return a.visit_outcome==="noshow_warned"||(a.no_show===true&&a.no_show_warned);}).length;
+        var esitati=all.filter(function(a){return a.visit_outcome;});
+        var completed=esitati.filter(function(a){return a.visit_outcome!=="noshow"&&a.visit_outcome!=="noshow_warned";}).length;
+        var noShowsUnwarned=esitati.filter(function(a){return a.visit_outcome==="noshow"||(a.no_show===true&&!a.no_show_warned);}).length;
+        var noShowsWarned=esitati.filter(function(a){return a.visit_outcome==="noshow_warned"||(a.no_show===true&&a.no_show_warned);}).length;
         var noShows=noShowsUnwarned+noShowsWarned;
-        var score=completed-(noShowsWarned*1)-(noShowsUnwarned*2);
-        var maxScore=total;
-        setStats({total_requests:total,completed_visits:completed,no_shows:noShows,score:score,max_score:maxScore});
+        var rel=calcReliability(all);
+        setStats({total_requests:total,completed_visits:completed,no_shows:noShows,score:rel.score,max_score:rel.maxCredits,credits:rel.credits});
       }
     });
   },[patientId]);
 
   if(!stats||stats.total_requests===0) return null;
 
-  var reliability=stats.max_score>0?Math.max(0,Math.round((stats.score/stats.max_score)*100)):100;
-  var reliabilityColor=reliability>=80?"#2dc889":reliability>=60?"var(--gold)":"#c45535";
+  var hasHistory=stats.max_score>0;
+  var reliability=hasHistory?Math.max(0,Math.round((stats.score/stats.max_score)*100)):null;
+  var reliabilityColor=reliability===null?"var(--text3)":reliability>=80?"#2dc889":reliability>=60?"var(--gold)":"#c45535";
   var hasNoShow=stats.no_shows>0;
 
   return(
@@ -7082,7 +7097,7 @@ function PatientSummaryBadge({patientId}){
         {label:"Richieste",value:stats.total_requests,icon:"📋",color:"var(--text2)"},
         {label:"Visite",value:stats.completed_visits,icon:"📅",color:"var(--gold)"},
         {label:"No-show",value:stats.no_shows,icon:hasNoShow?"⚠️":"✅",color:hasNoShow?"#c45535":"#2dc889"},
-        {label:"Affidabilità",value:reliability+"%",icon:"🎯",color:reliabilityColor},
+        {label:"Affidabilità",value:reliability!==null?reliability+"%":"—",icon:"🎯",color:reliabilityColor},
       ].map(function(s){return(
         <div key={s.label} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:99,background:"var(--bg2)",border:"1px solid var(--border)"}}>
           <span style={{fontSize:11}}>{s.icon}</span>
