@@ -7040,6 +7040,7 @@ function PatientStatsCard({patientId,compact,showFull}){
           {icon:"📅",label:"Visite",value:stats.completed_visits,color:"var(--gold)"},
           {icon:"📋",label:"Richieste",value:stats.total_requests,color:"var(--text2)"},
           {icon:"⚠️",label:"No-show",value:stats.no_shows,color:stats.no_shows>0?"#c45535":"#2dc889"},
+          {icon:"🎯",label:"Affidabilità",value:reliability!==null?reliability+"%":"—",color:reliabilityColor},
         ].map(function(s){return(
           <div key={s.label} style={{textAlign:"center",padding:"10px 6px",background:"var(--bg2)",borderRadius:"var(--radius)"}}>
             <p style={{fontSize:16,marginBottom:4}}>{s.icon}</p>
