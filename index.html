@@ -7021,8 +7021,8 @@ function PatientStatsCard({patientId,compact,showFull}){
 
   if(!stats) return null;
 
-  var reliability=stats.max_score>0?Math.max(0,Math.round((stats.score/stats.max_score)*100)):null;
-  var reliabilityColor=reliability===null?"var(--text3)":reliability>=80?"#2dc889":reliability>=50?"var(--gold)":"#c45535";
+  var reliability=stats.score; // già percentuale da calcReliability
+  var reliabilityColor=reliability>=80?"#2dc889":reliability>=50?"var(--gold)":"#c45535";
 
   if(compact) return(
     <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
@@ -7040,7 +7040,6 @@ function PatientStatsCard({patientId,compact,showFull}){
           {icon:"📅",label:"Visite",value:stats.completed_visits,color:"var(--gold)"},
           {icon:"📋",label:"Richieste",value:stats.total_requests,color:"var(--text2)"},
           {icon:"⚠️",label:"No-show",value:stats.no_shows,color:stats.no_shows>0?"#c45535":"#2dc889"},
-          {icon:"🎯",label:"Affidabilità",value:reliability!==null?reliability+"%":"—",color:reliabilityColor},
         ].map(function(s){return(
           <div key={s.label} style={{textAlign:"center",padding:"10px 6px",background:"var(--bg2)",borderRadius:"var(--radius)"}}>
             <p style={{fontSize:16,marginBottom:4}}>{s.icon}</p>
@@ -7086,9 +7085,8 @@ function PatientSummaryBadge({patientId}){
 
   if(!stats||stats.total_requests===0) return null;
 
-  var hasHistory=stats.max_score>0;
-  var reliability=hasHistory?Math.max(0,Math.round((stats.score/stats.max_score)*100)):null;
-  var reliabilityColor=reliability===null?"var(--text3)":reliability>=80?"#2dc889":reliability>=60?"var(--gold)":"#c45535";
+  var reliability=stats.score; // già percentuale da calcReliability
+  var reliabilityColor=reliability>=80?"#2dc889":reliability>=60?"var(--gold)":"#c45535";
   var hasNoShow=stats.no_shows>0;
 
   return(
@@ -7097,7 +7095,6 @@ function PatientSummaryBadge({patientId}){
         {label:"Richieste",value:stats.total_requests,icon:"📋",color:"var(--text2)"},
         {label:"Visite",value:stats.completed_visits,icon:"📅",color:"var(--gold)"},
         {label:"No-show",value:stats.no_shows,icon:hasNoShow?"⚠️":"✅",color:hasNoShow?"#c45535":"#2dc889"},
-        {label:"Affidabilità",value:reliability!==null?reliability+"%":"—",icon:"🎯",color:reliabilityColor},
       ].map(function(s){return(
         <div key={s.label} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:99,background:"var(--bg2)",border:"1px solid var(--border)"}}>
           <span style={{fontSize:11}}>{s.icon}</span>
