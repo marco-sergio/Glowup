@@ -2039,32 +2039,44 @@ function DocDashboard({user}){
   useEffect(function(){
     if(reminderChecked) return;
     setReminderChecked(true);
-    var TODAY=new Date().toISOString().slice(0,10);
-    sb.from("appointments")
-      .select("id")
-      .eq("doctor_id",user.id)
-      .in("status",["confirmed","pending"])
-      .lt("date",TODAY)
-      .is("visit_outcome",null)
-      .limit(1)
-      .then(function(res){
-        if(!res.error&&res.data&&res.data.length>0){
-          // Ci sono appuntamenti passati senza esito → mostra sempre
-          setShowReminder(true);
-        } else {
-          // Nessun arretrato → mostra solo nelle fasce orarie
-          var hour=new Date().getHours();
-          var isToday=(hour>=17&&hour<=23);
-          var isMorning=(hour>=8&&hour<=10);
-          if(isToday||isMorning){
-            var key="glowup_reminder_"+TODAY+"_"+(hour>=17?"eve":"morn");
-            if(!localStorage.getItem(key)){
-              setShowReminder(true);
-              localStorage.setItem(key,"1");
+    var checkAndShow=function(){
+      // Rispetta snooze: non mostrare se l'utente ha rimandato e le 2h non sono passate
+      var snooze=localStorage.getItem("glowup_reminder_snooze");
+      if(snooze&&Date.now()<parseInt(snooze)) return;
+      var TODAY=new Date().toISOString().slice(0,10);
+      sb.from("appointments")
+        .select("id")
+        .eq("doctor_id",user.id)
+        .in("status",["confirmed","pending"])
+        .lt("date",TODAY)
+        .is("visit_outcome",null)
+        .limit(1)
+        .then(function(res){
+          if(!res.error&&res.data&&res.data.length>0){
+            // Arretrati → mostra sempre (rispettando snooze sopra)
+            setShowReminder(true);
+          } else {
+            // Nessun arretrato → solo nelle fasce orarie
+            var hour=new Date().getHours();
+            var isEvening=(hour>=17&&hour<=23);
+            var isMorning=(hour>=8&&hour<=10);
+            if(isEvening||isMorning){
+              var key="glowup_reminder_"+TODAY+"_"+(hour>=17?"eve":"morn");
+              if(!localStorage.getItem(key)){
+                setShowReminder(true);
+                localStorage.setItem(key,"1");
+              }
             }
           }
-        }
-      });
+        });
+    };
+    checkAndShow();
+    // Ricontrolla ogni 2 ore (intervallo)
+    var interval=setInterval(checkAndShow, 2*60*60*1000);
+    // Ricontrolla anche quando il medico torna sulla tab
+    var onFocus=function(){checkAndShow();};
+    window.addEventListener("focus",onFocus);
+    return function(){clearInterval(interval);window.removeEventListener("focus",onFocus);};
   },[reminderChecked,user]);
 
   useEffect(function(){
@@ -2117,7 +2129,11 @@ function DocDashboard({user}){
         {sec==="ai"&&<DocGloriaAI user={user}/>}
         {sec==="sedi"&&<DocSedi user={user}/>}
       </div>
-    {showReminder&&<DailyReminderPopup user={user} onClose={function(){setShowReminder(false);}}/>}
+    {showReminder&&<DailyReminderPopup user={user} onClose={function(){
+      var snoozeUntil=Date.now()+(2*60*60*1000); // 2 ore
+      localStorage.setItem("glowup_reminder_snooze",String(snoozeUntil));
+      setShowReminder(false);
+    }}/>}
 
     </div>
   );
