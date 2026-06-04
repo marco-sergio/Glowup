@@ -7065,6 +7065,20 @@ function PatientStatsCard({patientId,compact,showFull}){
           </div>
         );})}
       </div>
+      {(function(){
+        var riskLevel=reliability>=80?"low":reliability>=50?"medium":"high";
+        var rc={
+          low:{color:"#2dc889",bg:"rgba(45,200,137,0.06)",border:"rgba(45,200,137,0.2)",dot:"#2dc889",label:"Paziente affidabile"},
+          medium:{color:"var(--gold)",bg:"rgba(200,169,110,0.07)",border:"rgba(200,169,110,0.25)",dot:"#c8a96e",label:"Storico incerto"},
+          high:{color:"#c45535",bg:"rgba(196,85,53,0.07)",border:"rgba(196,85,53,0.2)",dot:"#c45535",label:"Storico problematico"},
+        }[riskLevel];
+        return(
+          <div style={{padding:"10px 14px",borderRadius:"var(--radius)",background:rc.bg,border:"1px solid "+rc.border,marginBottom:stats.no_shows>0?8:0,display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:rc.dot,flexShrink:0,boxShadow:"0 0 5px "+rc.dot}}/>
+            <span style={{fontSize:11,fontWeight:700,color:rc.color}}>{rc.label} · {reliability}% affidabilità</span>
+          </div>
+        );
+      })()}
       {stats.no_shows>0&&(
         <div style={{padding:"8px 12px",background:"rgba(196,85,53,0.06)",borderRadius:"var(--radius)",border:"1px solid rgba(196,85,53,0.15)",fontSize:11,color:"#c45535"}}>
           ⚠️ {stats.no_shows_unwarned} senza preavviso · {stats.no_shows_warned} con preavviso
