@@ -42,7 +42,7 @@ input,textarea,select{font-family:'Syne',sans-serif;outline:none}
 .layout{display:grid;grid-template-columns:1fr var(--chat-w);grid-template-rows:52px 1fr;height:100vh;width:100vw}
 .layout-header{grid-column:1/-1;grid-row:1}
 .layout-main{grid-column:1;grid-row:2;overflow:hidden;display:flex;flex-direction:column}
-.layout-chat{grid-column:2;grid-row:2;border-left:1px solid var(--border);overflow:hidden;display:flex;flex-direction:column}
+.layout-chat{grid-column:2;grid-row:2;border-left:1px solid rgba(200,169,110,0.2);overflow:hidden;display:flex;flex-direction:column;box-shadow:-4px 0 24px rgba(0,0,0,0.12)}
 .layout-full{display:grid;grid-template-columns:220px 1fr;grid-template-rows:52px 1fr;height:100vh;width:100vw}
 .layout-full .layout-header{grid-column:1/-1;grid-row:1}
 .layout-full .layout-sidebar{grid-column:1;grid-row:2;border-right:1px solid var(--border);overflow-y:auto;background:var(--bg3)}
@@ -778,44 +778,120 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
   },[input,loading,onUpdate,msgs]);
 
 
-  return(
-    <div style={{height:"100%",display:"flex",flexDirection:"column",background:"var(--bg2)"}}>
-      <div style={{padding:"12px 14px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:9,background:"var(--bg3)",flexShrink:0}}>
-        <div style={{width:30,height:30,borderRadius:"50%",background:"linear-gradient(135deg,var(--gold),var(--gold-dim))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#fff"}}>G</div>
-        <div style={{flex:1}}><p style={{fontWeight:700,fontSize:12,color:"var(--text)"}}>Gloria</p><p style={{fontSize:9,color:"var(--text3)"}}>AI Consulente · GlowUp</p></div>
-        <div style={{width:6,height:6,borderRadius:"50%",background:"var(--teal)",boxShadow:"0 0 6px var(--teal)"}}/>
+  // Estrae medici menzionati dal testo per mostrare card inline
+  var extractMentionedDoctors=function(text){
+    var lo=text.toLowerCase();
+    return (realDoctors.length>0?realDoctors:DOCTORS).filter(function(d){
+      var lastName=(d.name||"").split(" ").slice(-1)[0].toLowerCase();
+      return lo.includes(lastName);
+    }).slice(0,3);
+  };
+
+  // Renderizza una card medico inline nella chat
+  var DoctorMiniCard=function({doc,onBook,onView}){
+    var ini=(doc.name||"").split(" ").map(function(n){return n[0];}).join("").slice(0,2).toUpperCase();
+    var col=doc.accent||"var(--gold)";
+    return(
+      <div style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(200,169,110,0.25)",borderRadius:12,padding:"10px 12px",marginTop:6,display:"flex",gap:10,alignItems:"center"}}>
+        <div style={{width:36,height:36,borderRadius:"50%",background:"linear-gradient(135deg,"+col+"40,"+col+"20)",border:"1px solid "+col+"50",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:12,color:col,flexShrink:0}}>{ini}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <p style={{fontSize:11,fontWeight:700,color:"#f5f0e8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{doc.name}</p>
+          <p style={{fontSize:10,color:"rgba(200,169,110,0.8)"}}>{doc.specialty}</p>
+          <p style={{fontSize:9,color:"rgba(245,240,232,0.45)"}}>{doc.city||"Italia"} · da €{doc.price||100}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+          <button onClick={function(){onView&&onView(doc);}} style={{padding:"4px 10px",borderRadius:99,background:"rgba(200,169,110,0.15)",border:"1px solid rgba(200,169,110,0.3)",color:"var(--gold)",fontSize:10,fontWeight:600,cursor:"pointer"}}>Profilo</button>
+          <button onClick={function(){onBook&&onBook(doc);}} style={{padding:"4px 10px",borderRadius:99,background:"var(--gold)",border:"none",color:"#1a1206",fontSize:10,fontWeight:700,cursor:"pointer"}}>Prenota</button>
+        </div>
       </div>
-      <div ref={ref} style={{flex:1,overflowY:"auto",padding:"13px",display:"flex",flexDirection:"column",gap:10}}>
+    );
+  };
+
+  return(
+    <div style={{height:"100%",display:"flex",flexDirection:"column",background:"linear-gradient(175deg,#1a1206 0%,#231a08 40%,#1e160a 70%,#16120a 100%)"}}>
+
+      {/* Header premium Gloria */}
+      <div style={{flexShrink:0,background:"linear-gradient(180deg,rgba(200,169,110,0.12) 0%,transparent 100%)",borderBottom:"1px solid rgba(200,169,110,0.15)",padding:"14px 14px 10px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          {/* Avatar Gloria */}
+          <div style={{position:"relative",flexShrink:0}}>
+            <div style={{width:42,height:42,borderRadius:"50%",background:"linear-gradient(135deg,#c8a96e,#8a6530)",border:"2px solid rgba(200,169,110,0.5)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:"0 0 16px rgba(200,169,110,0.3)"}}>✦</div>
+            <div style={{position:"absolute",bottom:1,right:1,width:9,height:9,borderRadius:"50%",background:"#2dc889",border:"2px solid #1a1206",boxShadow:"0 0 6px #2dc889"}}/>
+          </div>
+          <div style={{flex:1}}>
+            <p style={{fontWeight:700,fontSize:13,color:"#f5f0e8",letterSpacing:"0.02em"}}>Gloria</p>
+            <p style={{fontSize:9,color:"rgba(200,169,110,0.7)",letterSpacing:"0.06em",textTransform:"uppercase"}}>AI Consulente · GlowUp</p>
+          </div>
+          <div style={{padding:"3px 9px",borderRadius:99,background:"rgba(200,169,110,0.12)",border:"1px solid rgba(200,169,110,0.25)"}}>
+            <p style={{fontSize:9,color:"var(--gold)",fontWeight:700,letterSpacing:"0.05em"}}>LIVE</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Area messaggi */}
+      <div ref={ref} style={{flex:1,overflowY:"auto",padding:"14px 12px",display:"flex",flexDirection:"column",gap:10}}>
         {msgs.map(function(m,i){
           var isG=m.role==="assistant";
           var isP=m.proactive;
-          return <div key={i} style={{display:"flex",gap:7,alignItems:"flex-end",flexDirection:isG?"row":"row-reverse",animation:"slideIn .3s ease"}}>
-            {isG&&<div style={{width:26,height:26,borderRadius:"50%",background:isP?"var(--teal)":"var(--gold)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#fff",flexShrink:0,animation:"gloriaGlow 3s infinite"}}>{isP?"✦":"G"}</div>}
-            <div style={{maxWidth:"82%",padding:"9px 13px",borderRadius:isG?"4px 13px 13px 13px":"13px 4px 13px 13px",background:isG?(isP?"rgba(26,158,104,0.08)":"var(--surface)"):"var(--gold)",color:isG?"var(--text)":"#fff",fontSize:12,lineHeight:1.65,border:isG?("1px solid "+(isP?"rgba(26,158,104,0.2)":"var(--border)")):"none",whiteSpace:"pre-wrap"}}>{m.content}</div>
-          </div>;
+          var mentionedDocs=isG&&ctx==="marketplace"?extractMentionedDoctors(m.content):[];
+          return(
+            <div key={i} style={{display:"flex",gap:8,alignItems:"flex-start",flexDirection:isG?"row":"row-reverse",animation:"slideIn .3s ease"}}>
+              {isG&&(
+                <div style={{width:26,height:26,borderRadius:"50%",background:isP?"rgba(45,200,137,0.25)":"rgba(200,169,110,0.2)",border:"1px solid "+(isP?"rgba(45,200,137,0.4)":"rgba(200,169,110,0.4)"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:isP?"#2dc889":"var(--gold)",flexShrink:0,marginTop:2}}>✦</div>
+              )}
+              <div style={{maxWidth:"84%"}}>
+                <div style={{padding:"10px 13px",borderRadius:isG?"4px 14px 14px 14px":"14px 4px 14px 14px",background:isG?(isP?"rgba(45,200,137,0.08)":"rgba(255,255,255,0.06)"):"linear-gradient(135deg,var(--gold),#a07c45)",color:isG?"#f0ebe0":"#1a1206",fontSize:12,lineHeight:1.7,border:isG?("1px solid "+(isP?"rgba(45,200,137,0.2)":"rgba(200,169,110,0.15)")):"none",whiteSpace:"pre-wrap",boxShadow:isG?"none":"0 2px 12px rgba(200,169,110,0.3)"}}>
+                  {m.content}
+                </div>
+                {/* Card medici inline se Gloria li menziona */}
+                {mentionedDocs.length>0&&(
+                  <div style={{marginTop:2}}>
+                    {mentionedDocs.map(function(doc,di){
+                      return <DoctorMiniCard key={di} doc={doc} onBook={function(){window.gloriaTrack("book_intent",{doc:doc});}} onView={function(){window.gloriaTrack("view_card",{doc:doc});}} />;
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
         })}
         {loading&&(
-          <div style={{display:"flex",gap:7,alignItems:"flex-end"}}>
-            <div style={{width:26,height:26,borderRadius:"50%",background:"var(--gold)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#fff",flexShrink:0}}>G</div>
-            <div style={{padding:"10px 14px",borderRadius:"4px 13px 13px 13px",background:"var(--surface)",border:"1px solid var(--border)",display:"flex",gap:4,alignItems:"center"}}>
+          <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+            <div style={{width:26,height:26,borderRadius:"50%",background:"rgba(200,169,110,0.2)",border:"1px solid rgba(200,169,110,0.4)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"var(--gold)",flexShrink:0,marginTop:2}}>✦</div>
+            <div style={{padding:"11px 15px",borderRadius:"4px 14px 14px 14px",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(200,169,110,0.15)",display:"flex",gap:5,alignItems:"center"}}>
               <span className="typing-dot"/><span className="typing-dot"/><span className="typing-dot"/>
             </div>
           </div>
         )}
       </div>
+
+      {/* Chip suggerimenti */}
       {sugg.length>0&&!loading&&(
         <div className="fade-in" style={{padding:"0 12px 8px",display:"flex",gap:5,flexWrap:"wrap",flexShrink:0}}>
-          {sugg.map(function(s,i){return <button key={i} className="chip-suggest" onClick={function(){return send(s);}}>{s}</button>;})}
+          {sugg.map(function(s,i){
+            return(
+              <button key={i} onClick={function(){return send(s);}}
+                style={{padding:"5px 12px",borderRadius:99,border:"1px solid rgba(200,169,110,0.3)",background:"rgba(200,169,110,0.08)",color:"rgba(200,169,110,0.9)",fontSize:11,fontWeight:500,cursor:"pointer",transition:"all .15s",whiteSpace:"nowrap"}}>
+                {s}
+              </button>
+            );
+          })}
         </div>
       )}
-      <div style={{padding:"10px 12px",borderTop:"1px solid var(--border)",display:"flex",gap:7,alignItems:"center",background:"var(--bg3)",flexShrink:0}}>
-        <input ref={inputRef} value={input} onChange={function(e){return setInput(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")send();}}
-          placeholder="Scrivi a Gloria..." style={{flex:1,background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:"var(--radius-lg)",padding:"9px 13px",fontSize:12,color:"var(--text)",caretColor:"var(--gold)"}}/>
-        <button onClick={function(){return send();}} style={{width:34,height:34,borderRadius:"50%",background:input.trim()?"var(--gold)":"var(--surface)",border:"1px solid "+(input.trim()?"transparent":"var(--border)"),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={input.trim()?"#fff":"var(--text3)"} strokeWidth="2.5"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>
+
+      {/* Input area */}
+      <div style={{padding:"10px 12px 10px",borderTop:"1px solid rgba(200,169,110,0.12)",display:"flex",gap:7,alignItems:"center",background:"rgba(0,0,0,0.2)",flexShrink:0}}>
+        <input ref={inputRef} value={input}
+          onChange={function(e){return setInput(e.target.value);}}
+          onKeyDown={function(e){if(e.key==="Enter")send();}}
+          placeholder="Scrivi a Gloria..."
+          style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(200,169,110,0.2)",borderRadius:99,padding:"9px 15px",fontSize:12,color:"#f0ebe0",caretColor:"var(--gold)",outline:"none"}}/>
+        <button onClick={function(){return send();}}
+          style={{width:34,height:34,borderRadius:"50%",background:input.trim()?"linear-gradient(135deg,var(--gold),#a07c45)":"rgba(255,255,255,0.06)",border:"1px solid "+(input.trim()?"transparent":"rgba(200,169,110,0.2)"),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer",boxShadow:input.trim()?"0 2px 10px rgba(200,169,110,0.3)":"none",transition:"all .2s"}}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={input.trim()?"#1a1206":"rgba(200,169,110,0.5)"} strokeWidth="2.5"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>
         </button>
       </div>
-      <p style={{padding:"4px 12px 8px",textAlign:"center",fontSize:9,color:"var(--text3)",flexShrink:0}}>Gloria osserva e suggerisce in tempo reale ✦</p>
+      <p style={{padding:"4px 12px 8px",textAlign:"center",fontSize:9,color:"rgba(200,169,110,0.35)",flexShrink:0,letterSpacing:"0.05em"}}>✦ Gloria osserva e suggerisce in tempo reale</p>
     </div>
   );
 }
@@ -5475,15 +5551,15 @@ function DocChatThreads({user}){
           return(
             <div key={i} style={{display:"flex",gap:8,alignItems:"flex-end",flexDirection:isDoc?"row-reverse":"row"}}>
               {!isDoc&&(
-                <div style={{width:28,height:28,borderRadius:"50%",background:isGloria?"var(--gold)":"var(--bg3)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:isGloria?"#fff":"var(--text2)",flexShrink:0}}>
-                  {isGloria?"G":ini[0]}
+                <div style={{width:28,height:28,borderRadius:"50%",background:isGloria?"rgba(200,169,110,0.15)":"var(--bg3)",border:"1px solid "+(isGloria?"rgba(200,169,110,0.35)":"var(--border)"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:isGloria?"var(--gold)":"var(--text2)",flexShrink:0}}>
+                  {isGloria?"✦":ini[0]}
                 </div>
               )}
               <div style={{maxWidth:"75%"}}>
                 <p style={{fontSize:9,color:"var(--text3)",marginBottom:3,fontWeight:600,textAlign:isDoc?"right":"left"}}>
                   {isDoc?"Tu (medico)":isGloria?"Gloria · Assistente":pName}
                 </p>
-                <div style={{padding:"10px 14px",borderRadius:isDoc?"14px 4px 14px 14px":"4px 14px 14px 14px",background:isDoc?"var(--teal)":isGloria?"var(--surface)":"var(--bg2)",color:isDoc?"#fff":"var(--text)",fontSize:12,lineHeight:1.65,border:isDoc?"none":("1px solid var(--border)"),whiteSpace:"pre-wrap"}}>
+                <div style={{padding:"10px 14px",borderRadius:isDoc?"14px 4px 14px 14px":"4px 14px 14px 14px",background:isDoc?"linear-gradient(135deg,var(--teal),#157a52)":isGloria?"rgba(200,169,110,0.08)":"var(--bg2)",color:isDoc?"#fff":isGloria?"#f0ebe0":"var(--text)",fontSize:12,lineHeight:1.65,border:isDoc?"none":(isGloria?"1px solid rgba(200,169,110,0.2)":"1px solid var(--border)"),whiteSpace:"pre-wrap"}}>
                   {m.content}
                 </div>
               </div>
@@ -5769,7 +5845,7 @@ function PatDashboard({user,nav,uiState,onUiUpdate,chatTarget,onChatOpen}){
           <main style={{overflow:"hidden",display:"flex",flexDirection:"column"}}>
             <Marketplace uiState={uiState} onBook={setBookDoc} onView={function(doc){var slug=doc.id;window._currentDocId=doc.id;window.location.hash="#/medico/"+slug;}}/>
           </main>
-          <aside style={{borderLeft:"1px solid var(--border)",overflow:"hidden",display:"flex",flexDirection:"column"}}>
+          <aside style={{borderLeft:"1px solid rgba(200,169,110,0.2)",overflow:"hidden",display:"flex",flexDirection:"column",boxShadow:"-4px 0 24px rgba(0,0,0,0.12)"}}>
             <Gloria onUpdate={onUiUpdate} ctx="marketplace" doctors={[]}/>
           </aside>
         </div>
@@ -6025,13 +6101,13 @@ function ChatSystem({user,initialDoctorId,initialDoctorName}){
           return(
             <div key={i} style={{display:"flex",gap:8,alignItems:"flex-end",flexDirection:isMe?"row-reverse":"row"}}>
               {!isMe&&(
-                <div style={{width:28,height:28,borderRadius:"50%",background:isGloria?"var(--gold)":"var(--teal)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#fff",flexShrink:0}}>
-                  {isGloria?"G":ini[0]}
+                <div style={{width:28,height:28,borderRadius:"50%",background:isGloria?"rgba(200,169,110,0.15)":"var(--teal)",border:"1px solid "+(isGloria?"rgba(200,169,110,0.35)":"transparent"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:isGloria?"var(--gold)":"#fff",flexShrink:0}}>
+                  {isGloria?"✦":ini[0]}
                 </div>
               )}
               <div style={{maxWidth:"72%"}}>
                 {!isMe&&<p style={{fontSize:9,color:"var(--text3)",marginBottom:2,fontWeight:600}}>{isGloria?"Gloria · Assistente":otherName}</p>}
-                <div style={{padding:"10px 14px",borderRadius:isMe?"14px 4px 14px 14px":"4px 14px 14px 14px",background:isMe?"var(--gold)":isGloria?"var(--surface)":"var(--bg3)",color:isMe?"#fff":"var(--text)",fontSize:13,lineHeight:1.6,border:isMe?"none":("1px solid "+(isGloria?"var(--border)":"var(--border2)")),whiteSpace:"pre-wrap"}}>
+                <div style={{padding:"10px 14px",borderRadius:isMe?"14px 4px 14px 14px":"4px 14px 14px 14px",background:isMe?"linear-gradient(135deg,var(--gold),#a07c45)":isGloria?"rgba(200,169,110,0.08)":"var(--bg3)",color:isMe?"#fff":isGloria?"#f0ebe0":"var(--text)",fontSize:13,lineHeight:1.6,border:isMe?"none":(isGloria?"1px solid rgba(200,169,110,0.2)":"1px solid var(--border2)"),whiteSpace:"pre-wrap"}}>
                   {m.content}
                 </div>
               </div>
