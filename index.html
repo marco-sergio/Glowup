@@ -518,7 +518,7 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
   var _budgetState=useState("");var budget=_budgetState[0];var setBudget=_budgetState[1];
   var _realDoctorsState=useState([]);var realDoctors=_realDoctorsState[0];var setRealDoctors=_realDoctorsState[1];
 
-  // Carica medici reali dal DB per il contesto di Gloria
+  // Carica medici reali dal DB per il contesto di Gloria (incluso portfolio)
   useEffect(function(){
     if(ctx!=="marketplace") return;
     var loadDocs=async function(){
@@ -526,20 +526,31 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
         .select("*, profile:profiles!doctor_profiles_id_fkey(id,name,city)")
         .eq("available",true);
       var locRes=await sb.from("doctor_locations").select("*");
+      var portRes=await sb.from("portfolio").select("id,doctor_id,title,category,photo_before,photo_after").eq("visible",true);
       var allLocs=(!locRes.error&&locRes.data)?locRes.data:[];
+      var allPort=(!portRes.error&&portRes.data)?portRes.data:[];
       if(!dpRes.error&&dpRes.data&&dpRes.data.length>0){
         var mapped=dpRes.data.map(function(d){
           var name=d.profile?d.profile.name:"Medico";
+          var profileId=d.profile?d.profile.id:null;
           var docLocs=allLocs.filter(function(l){return l.doctor_id===d.id;});
           var mainCity=d.profile?d.profile.city:"";
           var allCities=mainCity?[mainCity]:[];
           docLocs.forEach(function(l){if(l.city&&!allCities.includes(l.city))allCities.push(l.city);});
+          var docPort=allPort.filter(function(p){return p.doctor_id===d.id;});
+          var ini=name.split(" ").map(function(n){return n[0];}).join("").slice(0,2).toUpperCase();
           return {
+            id:d.id,
+            supabase_id:profileId,
             name:name,
+            ini:ini,
             specialty:d.specialty||"Medicina Estetica",
             city:allCities.join(", "),
             price:d.price||100,
             services:d.services||[],
+            rating:d.rating||4.8,
+            portfolio:docPort,
+            accent:d.accent||"var(--gold)",
           };
         });
         setRealDoctors(mapped);
@@ -712,11 +723,18 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
     setMsgs(function(prev){return [...prev,newUserMsg];});
     setLoading(true);
 
-    // Costruisce contesto medici per Gloria
+    // Costruisce contesto medici per Gloria (incluso portfolio)
     var docList=realDoctors.length>0?realDoctors:DOCTORS;
     var doctorContext=docList.slice(0,10).map(function(d){
       var cityStr=d.city||"Italia";
-      return d.name+" | "+d.specialty+" | Citta: "+cityStr+" | Prezzo: EUR"+d.price+" | Servizi: "+d.services.join(", ");
+      var base=d.name+" | "+d.specialty+" | Citta: "+cityStr+" | Prezzo: EUR"+d.price+" | Servizi: "+(d.services||[]).join(", ");
+      if(d.portfolio&&d.portfolio.length>0){
+        var portSummary=d.portfolio.map(function(p){return (p.category||"Altro")+(p.title?": "+p.title:"");}).join(", ");
+        base+=" | Portfolio ("+d.portfolio.length+" casi): "+portSummary;
+      } else {
+        base+=" | Portfolio: nessun caso clinico caricato";
+      }
+      return base;
     }).join("\n");
 
     // Prepara cronologia messaggi per Claude
@@ -787,21 +805,71 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
     }).slice(0,3);
   };
 
-  // Renderizza una card medico inline nella chat
-  var DoctorMiniCard=function({doc,onBook,onView}){
-    var ini=(doc.name||"").split(" ").map(function(n){return n[0];}).join("").slice(0,2).toUpperCase();
+  // Renderizza una card medico inline nella chat con portfolio filtrato per intent
+  var DoctorMiniCard=function({doc,onBook,onView,intent}){
+    var ini=doc.ini||((doc.name||"").split(" ").map(function(n){return n[0];}).join("").slice(0,2).toUpperCase());
     var col=doc.accent||"var(--gold)";
+    var stars=Math.round(doc.rating||4.8);
+    // Filtra portfolio per tag rilevante all'intent
+    var relevantPort=(doc.portfolio||[]).filter(function(p){
+      if(!intent||!p.category) return true;
+      return p.category.toLowerCase().includes(intent.toLowerCase())||intent.toLowerCase().includes(p.category.toLowerCase());
+    }).slice(0,2);
+    var portToShow=relevantPort.length>0?relevantPort:(doc.portfolio||[]).slice(0,2);
     return(
-      <div style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(200,169,110,0.25)",borderRadius:12,padding:"10px 12px",marginTop:6,display:"flex",gap:10,alignItems:"center"}}>
-        <div style={{width:36,height:36,borderRadius:"50%",background:"linear-gradient(135deg,"+col+"40,"+col+"20)",border:"1px solid "+col+"50",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:12,color:col,flexShrink:0}}>{ini}</div>
-        <div style={{flex:1,minWidth:0}}>
-          <p style={{fontSize:11,fontWeight:700,color:"#f5f0e8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{doc.name}</p>
-          <p style={{fontSize:10,color:"rgba(200,169,110,0.8)"}}>{doc.specialty}</p>
-          <p style={{fontSize:9,color:"rgba(245,240,232,0.45)"}}>{doc.city||"Italia"} · da €{doc.price||100}</p>
+      <div style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(200,169,110,0.2)",borderRadius:14,marginTop:8,overflow:"hidden"}}>
+        {/* Header card medico */}
+        <div style={{padding:"10px 12px",display:"flex",gap:10,alignItems:"center",borderBottom:portToShow.length>0?"1px solid rgba(200,169,110,0.1)":"none",cursor:"pointer"}}
+          onClick={function(){onView&&onView(doc);}}>
+          <div style={{width:40,height:40,borderRadius:"50%",background:"linear-gradient(135deg,"+col+"40,"+col+"15)",border:"1.5px solid "+col+"60",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,color:col,flexShrink:0}}>{ini}</div>
+          <div style={{flex:1,minWidth:0}}>
+            <p style={{fontSize:12,fontWeight:700,color:"#f5f0e8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{doc.name}</p>
+            <p style={{fontSize:10,color:"rgba(200,169,110,0.75)",marginBottom:2}}>{doc.specialty}</p>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:9,color:"#c8a96e"}}>{"★".repeat(stars)}</span>
+              <span style={{fontSize:9,color:"rgba(245,240,232,0.4)"}}>{doc.city||"Italia"}</span>
+              <span style={{fontSize:9,color:"rgba(245,240,232,0.4)"}}>· da €{doc.price||100}</span>
+            </div>
+          </div>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(200,169,110,0.5)" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
         </div>
-        <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
-          <button onClick={function(){onView&&onView(doc);}} style={{padding:"4px 10px",borderRadius:99,background:"rgba(200,169,110,0.15)",border:"1px solid rgba(200,169,110,0.3)",color:"var(--gold)",fontSize:10,fontWeight:600,cursor:"pointer"}}>Profilo</button>
-          <button onClick={function(){onBook&&onBook(doc);}} style={{padding:"4px 10px",borderRadius:99,background:"var(--gold)",border:"none",color:"#1a1206",fontSize:10,fontWeight:700,cursor:"pointer"}}>Prenota</button>
+        {/* Foto portfolio rilevanti */}
+        {portToShow.length>0&&(
+          <div>
+            <div style={{padding:"6px 12px 4px",display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:9,color:"rgba(200,169,110,0.5)",fontWeight:700,letterSpacing:"0.06em"}}>CASI CLINICI</span>
+              {intent&&<span style={{fontSize:9,padding:"2px 7px",borderRadius:99,background:"rgba(200,169,110,0.1)",color:"rgba(200,169,110,0.7)",border:"1px solid rgba(200,169,110,0.2)"}}>{intent}</span>}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:portToShow.length>1?"1fr 1fr":"1fr",gap:2,padding:"0 2px 2px"}}>
+              {portToShow.map(function(p,pi){
+                var imgSrc=p.photo_after||p.photo_before;
+                return(
+                  <div key={pi} style={{position:"relative",height:90,background:"rgba(255,255,255,0.04)",overflow:"hidden",borderRadius:pi===0?"0 0 0 12px":pi===portToShow.length-1&&portToShow.length>1?"0 0 12px 0":"0"}}>
+                    {imgSrc?(
+                      <img src={imgSrc} alt={p.title||"Caso clinico"} style={{width:"100%",height:"100%",objectFit:"cover",opacity:0.85}}/>
+                    ):(
+                      <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        <span style={{fontSize:20,opacity:0.3}}>📸</span>
+                      </div>
+                    )}
+                    <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,0.6) 0%,transparent 60%)",pointerEvents:"none"}}/>
+                    {p.title&&<p style={{position:"absolute",bottom:5,left:6,right:6,fontSize:9,color:"rgba(255,255,255,0.8)",fontWeight:600,lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.title}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {/* CTA */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,padding:"8px 10px"}}>
+          <button onClick={function(){onView&&onView(doc);}}
+            style={{padding:"7px",borderRadius:99,background:"rgba(200,169,110,0.1)",border:"1px solid rgba(200,169,110,0.25)",color:"var(--gold)",fontSize:10,fontWeight:600,cursor:"pointer"}}>
+            Vedi profilo
+          </button>
+          <button onClick={function(){onBook&&onBook(doc);}}
+            style={{padding:"7px",borderRadius:99,background:"linear-gradient(135deg,var(--gold),#a07c45)",border:"none",color:"#1a1206",fontSize:10,fontWeight:700,cursor:"pointer",boxShadow:"0 2px 8px rgba(200,169,110,0.25)"}}>
+            Prenota →
+          </button>
         </div>
       </div>
     );
@@ -847,7 +915,17 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
                 {mentionedDocs.length>0&&(
                   <div style={{marginTop:2}}>
                     {mentionedDocs.map(function(doc,di){
-                      return <DoctorMiniCard key={di} doc={doc} onBook={function(){window.gloriaTrack("book_intent",{doc:doc});}} onView={function(){window.gloriaTrack("view_card",{doc:doc});}} />;
+                      return <DoctorMiniCard key={di} doc={doc} intent={intent}
+                        onView={function(){
+                          window.gloriaTrack("view_card",{doc:doc});
+                          if(doc.supabase_id){window._currentDocId=doc.supabase_id;window.location.hash="#/medico/"+doc.supabase_id;}
+                          else if(doc.id){window._currentDocId=doc.id;window.location.hash="#/medico/"+doc.id;}
+                        }}
+                        onBook={function(){
+                          window.gloriaTrack("book_intent",{doc:doc});
+                          if(window._openBookModal) window._openBookModal(doc);
+                          else if(doc.supabase_id){window._currentDocId=doc.supabase_id;window.location.hash="#/medico/"+doc.supabase_id;}
+                        }} />;
                     })}
                   </div>
                 )}
@@ -7869,6 +7947,7 @@ function App(){
   var _uiState=useState({heroTitle:null,heroSubtitle:null,highlightedDoctorIds:[],filterTags:[],filterCity:null,contextNote:null,suggestions:[]});var ui=_uiState[0];var setUi=_uiState[1];
   var _bookDocState=useState(null);var bookDoc=_bookDocState[0];var setBookDoc=_bookDocState[1];
   var _viewDocState=useState(null);var viewDoc=_viewDocState[0];var setViewDoc=_viewDocState[1];
+  useEffect(function(){window._openBookModal=function(doc){setBookDoc(doc);};return function(){window._openBookModal=null;};},[]);
   var _authCheckedState=useState(false);var authChecked=_authCheckedState[0];var setAuthChecked=_authCheckedState[1];
   var _anamnesState=useState(null);var anamnesData=_anamnesState[0];var setAnamnesData=_anamnesState[1];
 
