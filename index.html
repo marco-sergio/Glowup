@@ -144,16 +144,15 @@ function UserMenu({user,nav,onLogout}){
   var goTo=function(section){
     setOpen(false);
     if(window._patSection){
-      // Già nel dashboard - cambia sezione direttamente
+
       window._patSection(section);
     } else {
-      // Naviga al dashboard poi cambia sezione
+
       nav("dashboard");
       setTimeout(function(){window._patSection&&window._patSection(section);},200);
     }
   };
 
-  // Close on outside click
   var handleOverlayClick=function(){setOpen(false);};
 
   return(
@@ -207,7 +206,6 @@ function UserMenu({user,nav,onLogout}){
     </div>
   );
 }
-
 
 function Header({user,onLogout,nav,cur}){
   return(
@@ -282,11 +280,10 @@ function Marketplace({uiState,onBook,onView}){
   var _aiLabelState=useState(null);var aiLabel=_aiLabelState[0];var setAiLabel=_aiLabelState[1];
   var searchTimerRef=useRef(null);
 
-  // Carica medici dal DB
   useEffect(function(){
     var fetchDoctors=async function(){
       setLoadingDocs(true);
-      // Query separata per profili e locations
+
       var dpRes=await sb.from("doctor_profiles")
         .select("*, profile:profiles!doctor_profiles_id_fkey(id,name,city)")
         .eq("available",true);
@@ -318,14 +315,14 @@ function Marketplace({uiState,onBook,onView}){
             cover_url:d.cover_url||null,
             locations:docLocs,
           };
-          // Raccogli tutte le città: profilo + sedi operative
+
           var mainCity=d.profile?d.profile.city:"";
           var allCities=mainCity?[mainCity]:[];
           docLocs.forEach(function(loc){
             if(loc.city&&!allCities.includes(loc.city)) allCities.push(loc.city);
           });
           if(allCities.length===0) allCities=["Italia"];
-          // UNA sola card per medico con tutte le città
+
           expanded.push(Object.assign({},base,{
             city:allCities[0], // città principale per display
             allCities:allCities, // tutte le città per il filtro
@@ -350,7 +347,6 @@ function Marketplace({uiState,onBook,onView}){
   var allDocs=dbDoctors.length>0?dbDoctors:DOCTORS;
   var allServices=Object.values(TAXONOMY).flatMap(function(t){return t.services;});
 
-  // AI semantic search per desktop
   useEffect(function(){
     if(searchTimerRef.current) clearTimeout(searchTimerRef.current);
     setAiTerms(null);setAiLabel(null);
@@ -389,7 +385,7 @@ function Marketplace({uiState,onBook,onView}){
         if(!label) label=entry.services[0];
       }
     });
-    // Ricerca per famiglia TAXONOMY
+
     Object.entries(TAXONOMY).forEach(function(e){
       var areaName=e[0].toLowerCase();
       if(q.includes(areaName)||areaName.includes(q)){
@@ -411,7 +407,7 @@ function Marketplace({uiState,onBook,onView}){
   var filtered=allDocs.filter(function(d){
     var q=search.toLowerCase();
     var cities=d.allCities||[d.city];
-    // Se AI ha trovato termini semantici, usa quelli
+
     if(aiTerms&&aiTerms.length>0){
       var matchesAI=aiTerms.some(function(t){
         var tLow=t.toLowerCase();
@@ -463,7 +459,7 @@ function Marketplace({uiState,onBook,onView}){
           {allTags.map(function(t){return <button key={t} onClick={function(){setTags(function(prev){return prev.includes(t)?prev.filter(function(x){return x!==t;}):[...prev,t];});window.gloriaTrack("filter_tag",{tag:t});}} className={"filter-chip"+(tags.includes(t)?" active":"")}>{t}</button>;})}
           {city&&<button onClick={()=>setCity(null)} className="filter-chip active" style={{borderColor:"var(--teal)",color:"var(--teal)",background:"var(--teal-dim)"}}>📍 {city} ✕</button>}
         </div>
-        {/* Campo città — appare quando c'è una ricerca attiva */}
+        {}
         {(search||tags.length>0)&&(
           <div className="fade-in" style={{display:"flex",gap:8,alignItems:"center",background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:"var(--radius-lg)",padding:"9px 13px",marginTop:8}}>
             <span style={{fontSize:13}}>📍</span>
@@ -496,7 +492,6 @@ function Marketplace({uiState,onBook,onView}){
   );
 }
 
-
 function Gloria({onUpdate,ctx="marketplace",doctors}){
   const MSG0={
     marketplace:"Ciao! Sono Gloria ✦\nSono qui per aiutarti a trovare il professionista giusto. Di cosa hai bisogno?",
@@ -518,7 +513,6 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
   var _budgetState=useState("");var budget=_budgetState[0];var setBudget=_budgetState[1];
   var _realDoctorsState=useState([]);var realDoctors=_realDoctorsState[0];var setRealDoctors=_realDoctorsState[1];
 
-  // Carica medici reali dal DB per il contesto di Gloria (incluso portfolio)
   useEffect(function(){
     if(ctx!=="marketplace") return;
     var loadDocs=async function(){
@@ -723,7 +717,6 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
     setMsgs(function(prev){return [...prev,newUserMsg];});
     setLoading(true);
 
-    // Costruisce contesto medici per Gloria (incluso portfolio)
     var docList=realDoctors.length>0?realDoctors:DOCTORS;
     var doctorContext=docList.slice(0,10).map(function(d){
       var cityStr=d.city||"Italia";
@@ -737,7 +730,6 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
       return base;
     }).join("\n");
 
-    // Prepara cronologia messaggi per Claude
     var history=msgs.concat([newUserMsg]).map(function(m){
       return {role:m.role==="assistant"?"assistant":"user",content:m.content};
     });
@@ -759,27 +751,23 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
         setMsgs(function(prev){return [...prev,{role:"assistant",content:data.content}];});
         setSugg(["Dimmi di più","Qual è il prezzo?","Posso prenotare?","Mostrami altri medici"]);
 
-        // Aggiorna marketplace in base alla risposta di Gloria
         var reply=data.content.toLowerCase();
         var uiUpdate={};
 
-        // Rileva città menzionate - cerca anche nei messaggi utente
         var cityMap={"torino":"Torino","milano":"Milano","roma":"Roma","firenze":"Firenze","napoli":"Napoli"};
         var foundCity=null;
-        // Cerca prima nel messaggio utente, poi nella risposta
+
         var userMsg=t.toLowerCase();
         Object.keys(cityMap).forEach(function(k){if(userMsg.includes(k))foundCity=cityMap[k];});
         if(!foundCity) Object.keys(cityMap).forEach(function(k){if(reply.includes(k))foundCity=cityMap[k];});
         if(foundCity) uiUpdate.filterCity=foundCity;
         else uiUpdate.filterCity=null; // reset se non c'è città
 
-        // Rileva servizi/tag menzionati
         var tagMap={"rinoplastica":["viso","chirurgia"],"botox":["viso","non-invasivo"],"filler":["viso","non-invasivo"],"lifting":["viso","chirurgia"],"liposuzione":["corpo","chirurgia"],"mastoplastica":["seno","chirurgia"],"peeling":["pelle","non-invasivo"],"laser":["laser","non-invasivo"]};
         var foundTags=[];
         Object.keys(tagMap).forEach(function(k){if(reply.includes(k)){tagMap[k].forEach(function(t){if(!foundTags.includes(t))foundTags.push(t);});}});
         if(foundTags.length>0) uiUpdate.filterTags=foundTags;
 
-        // Evidenzia medici menzionati nella risposta
         var mentionedIds=realDoctors.filter(function(d){
           return reply.includes(d.name.toLowerCase().split(" ").slice(-1)[0].toLowerCase());
         }).map(function(d){return d.supabase_id||d.id;});
@@ -795,8 +783,6 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
     if(inputRef.current) inputRef.current.focus();
   },[input,loading,onUpdate,msgs]);
 
-
-  // Estrae medici menzionati dal testo per mostrare card inline
   var extractMentionedDoctors=function(text){
     var lo=text.toLowerCase();
     return (realDoctors.length>0?realDoctors:DOCTORS).filter(function(d){
@@ -805,12 +791,11 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
     }).slice(0,3);
   };
 
-  // Renderizza una card medico inline nella chat con portfolio filtrato per intent
   var DoctorMiniCard=function({doc,onBook,onView,intent}){
     var ini=doc.ini||((doc.name||"").split(" ").map(function(n){return n[0];}).join("").slice(0,2).toUpperCase());
     var col=doc.accent||"var(--gold)";
     var stars=Math.round(doc.rating||4.8);
-    // Filtra portfolio per tag rilevante all'intent
+
     var relevantPort=(doc.portfolio||[]).filter(function(p){
       if(!intent||!p.category) return true;
       return p.category.toLowerCase().includes(intent.toLowerCase())||intent.toLowerCase().includes(p.category.toLowerCase());
@@ -818,7 +803,7 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
     var portToShow=relevantPort.length>0?relevantPort:(doc.portfolio||[]).slice(0,2);
     return(
       <div style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(200,169,110,0.2)",borderRadius:14,marginTop:8,overflow:"hidden"}}>
-        {/* Header card medico */}
+        {}
         <div style={{padding:"10px 12px",display:"flex",gap:10,alignItems:"center",borderBottom:portToShow.length>0?"1px solid rgba(200,169,110,0.1)":"none",cursor:"pointer"}}
           onClick={function(){onView&&onView(doc);}}>
           <div style={{width:40,height:40,borderRadius:"50%",background:"linear-gradient(135deg,"+col+"40,"+col+"15)",border:"1.5px solid "+col+"60",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,color:col,flexShrink:0}}>{ini}</div>
@@ -833,7 +818,7 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
           </div>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(200,169,110,0.5)" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
         </div>
-        {/* Foto portfolio rilevanti */}
+        {}
         {portToShow.length>0&&(
           <div>
             <div style={{padding:"6px 12px 4px",display:"flex",alignItems:"center",gap:6}}>
@@ -860,7 +845,7 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
             </div>
           </div>
         )}
-        {/* CTA */}
+        {}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,padding:"8px 10px"}}>
           <button onClick={function(){onView&&onView(doc);}}
             style={{padding:"7px",borderRadius:99,background:"rgba(200,169,110,0.1)",border:"1px solid rgba(200,169,110,0.25)",color:"var(--gold)",fontSize:10,fontWeight:600,cursor:"pointer"}}>
@@ -878,10 +863,10 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
   return(
     <div style={{height:"100%",display:"flex",flexDirection:"column",background:"linear-gradient(175deg,#1a1206 0%,#231a08 40%,#1e160a 70%,#16120a 100%)"}}>
 
-      {/* Header premium Gloria */}
+      {}
       <div style={{flexShrink:0,background:"linear-gradient(180deg,rgba(200,169,110,0.12) 0%,transparent 100%)",borderBottom:"1px solid rgba(200,169,110,0.15)",padding:"14px 14px 10px"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          {/* Avatar Gloria */}
+          {}
           <div style={{position:"relative",flexShrink:0}}>
             <div style={{width:42,height:42,borderRadius:"50%",background:"linear-gradient(135deg,#c8a96e,#8a6530)",border:"2px solid rgba(200,169,110,0.5)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:"0 0 16px rgba(200,169,110,0.3)"}}>✦</div>
             <div style={{position:"absolute",bottom:1,right:1,width:9,height:9,borderRadius:"50%",background:"#2dc889",border:"2px solid #1a1206",boxShadow:"0 0 6px #2dc889"}}/>
@@ -896,7 +881,7 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
         </div>
       </div>
 
-      {/* Area messaggi */}
+      {}
       <div ref={ref} style={{flex:1,overflowY:"auto",padding:"14px 12px",display:"flex",flexDirection:"column",gap:10}}>
         {msgs.map(function(m,i){
           var isG=m.role==="assistant";
@@ -911,7 +896,7 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
                 <div style={{padding:"10px 13px",borderRadius:isG?"4px 14px 14px 14px":"14px 4px 14px 14px",background:isG?(isP?"rgba(45,200,137,0.08)":"rgba(255,255,255,0.06)"):"linear-gradient(135deg,var(--gold),#a07c45)",color:isG?"#f0ebe0":"#1a1206",fontSize:12,lineHeight:1.7,border:isG?("1px solid "+(isP?"rgba(45,200,137,0.2)":"rgba(200,169,110,0.15)")):"none",whiteSpace:"pre-wrap",boxShadow:isG?"none":"0 2px 12px rgba(200,169,110,0.3)"}}>
                   {m.content}
                 </div>
-                {/* Card medici inline se Gloria li menziona */}
+                {}
                 {mentionedDocs.length>0&&(
                   <div style={{marginTop:2}}>
                     {mentionedDocs.map(function(doc,di){
@@ -943,7 +928,7 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
         )}
       </div>
 
-      {/* Chip suggerimenti */}
+      {}
       {sugg.length>0&&!loading&&(
         <div className="fade-in" style={{padding:"0 12px 8px",display:"flex",gap:5,flexWrap:"wrap",flexShrink:0}}>
           {sugg.map(function(s,i){
@@ -957,7 +942,7 @@ function Gloria({onUpdate,ctx="marketplace",doctors}){
         </div>
       )}
 
-      {/* Input area */}
+      {}
       <div style={{padding:"10px 12px 10px",borderTop:"1px solid rgba(200,169,110,0.12)",display:"flex",gap:7,alignItems:"center",background:"rgba(0,0,0,0.2)",flexShrink:0}}>
         <input ref={inputRef} value={input}
           onChange={function(e){return setInput(e.target.value);}}
@@ -1007,7 +992,7 @@ function MapView({locations,height}){
         var coords=[];
         for(var i=0;i<locations.length;i++){
           var loc=locations[i];
-          // Usa coordinate salvate se disponibili, altrimenti geocoding
+
           if(loc.lat&&loc.lon){
             var lat=loc.lat,lon=loc.lon;
             var ico=L.divIcon({className:"",html:'<div style="width:18px;height:18px;background:#c8a96e;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.35)"></div>',iconSize:[18,18],iconAnchor:[9,9],popupAnchor:[0,-12]});
@@ -1105,7 +1090,7 @@ function DoveOpera({doc}){
         </div>
       )}
 
-      {/* Calendario globale se non ci sono sedi */}
+      {}
       {locations.length===0&&globalAv.length>0&&(
         <div style={{padding:"14px 16px",background:"var(--bg2)",borderRadius:"var(--radius-lg)",border:"1px solid var(--border)",marginBottom:"1rem"}}>
           <p style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:8}}>DISPONIBILITA GENERALE</p>
@@ -1113,7 +1098,7 @@ function DoveOpera({doc}){
         </div>
       )}
 
-      {/* Contatti */}
+      {}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
         <div style={{padding:"12px 14px",background:"var(--bg2)",borderRadius:"var(--radius)",border:"1px solid var(--border)"}}>
           <p style={{fontSize:10,color:"var(--text3)",marginBottom:4}}>📞 CONTATTI</p>
@@ -1140,7 +1125,7 @@ function DoctorPage({docId,docSlug,onBook,onBack}){
   useEffect(function(){
     window.scrollTo(0,0);
     var load=async function(){
-      // Load by id or slug
+
       var query=sb.from("doctor_profiles").select("*, profile:profiles!doctor_profiles_id_fkey(id,name,city,phone)");
       var res=docId?await query.eq("id",docId).single():await query.eq("id",docSlug).single();
       if(res.error||!res.data){setLoading(false);return;}
@@ -1156,14 +1141,14 @@ function DoctorPage({docId,docSlug,onBook,onBack}){
         photo_url:d.photo_url||null,cover_url:d.cover_url||null,
         city:d.profile?d.profile.city:"",allCities:[d.profile?d.profile.city:""].filter(Boolean)
       };
-      // Load locations
+
       var locRes=await sb.from("doctor_locations").select("*").eq("doctor_id",d.id);
       if(!locRes.error&&locRes.data){
         setLocations(locRes.data);
         var extraCities=locRes.data.map(function(l){return l.city;}).filter(function(c){return c&&!docObj.allCities.includes(c);});
         docObj.allCities=[...docObj.allCities,...extraCities];
       }
-      // Load portfolio
+
       var portRes=await sb.from("portfolio").select("*").eq("doctor_id",d.id).eq("visible",true).order("created_at",{ascending:false});
       if(!portRes.error&&portRes.data) setPortfolio(portRes.data.map(function(p){return {id:p.id,label:p.title,tag:p.category||"Altro",before:p.photo_before,after:p.photo_after,description:p.description};}));
       setDoc(docObj);
@@ -1204,7 +1189,7 @@ function DoctorPage({docId,docSlug,onBook,onBack}){
       )}
       {bookDoc&&<BookModal doc={bookDoc} onClose={function(){setBookDoc(null);}} user={window._currentUser||null}/>}
 
-      {/* Header nav */}
+      {}
       <div style={{background:"var(--bg3)",borderBottom:"1px solid var(--border)",padding:"12px 2rem",display:"flex",alignItems:"center",gap:12,position:"sticky",top:0,zIndex:50}}>
         <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:"var(--text3)",fontSize:13,cursor:"pointer",padding:"4px 8px",borderRadius:"var(--radius)"}}>
           ← Torna alla ricerca
@@ -1216,15 +1201,15 @@ function DoctorPage({docId,docSlug,onBook,onBack}){
         </div>
       </div>
 
-      {/* Cover */}
+      {}
       <div style={{height:240,background:doc.cover_url?"url("+doc.cover_url+") center/cover":"linear-gradient(135deg,"+doc.accent+"20 0%,var(--bg2) 50%,"+doc.accent+"08 100%)",position:"relative"}}>
         <div style={{position:"absolute",bottom:0,left:0,right:0,height:120,background:"linear-gradient(to bottom,transparent,var(--bg))"}}/>
       </div>
 
-      {/* Main content */}
+      {}
       <div style={{maxWidth:900,margin:"0 auto",padding:"0 2rem 4rem"}}>
 
-        {/* Profile header */}
+        {}
         <div style={{display:"flex",gap:20,alignItems:"flex-end",marginTop:-60,marginBottom:24,position:"relative",zIndex:2}}>
           {doc.photo_url?(
             <img src={doc.photo_url} alt={doc.name} style={{width:120,height:120,borderRadius:"50%",objectFit:"cover",border:"4px solid var(--bg)",boxShadow:"0 8px 24px rgba(0,0,0,0.15)",flexShrink:0}}/>
@@ -1250,14 +1235,14 @@ function DoctorPage({docId,docSlug,onBook,onBack}){
           </div>
         </div>
 
-        {/* Bio preview */}
+        {}
         {doc.bio&&(
           <div style={{padding:"16px 20px",background:"var(--surface)",borderRadius:"var(--radius-lg)",border:"1px solid var(--border)",marginBottom:20,borderLeft:"3px solid var(--gold)"}}>
             <p style={{fontSize:14,color:"var(--text2)",lineHeight:1.8}}>{doc.bio}</p>
           </div>
         )}
 
-        {/* Stats + CTA */}
+        {}
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr) 2fr",gap:10,marginBottom:24}}>
           {[
             {v:doc.rating+"/5",l:"Rating",icon:"⭐"},
@@ -1285,7 +1270,7 @@ function DoctorPage({docId,docSlug,onBook,onBack}){
           </div>
         </div>
 
-        {/* Tabs */}
+        {}
         <div style={{display:"flex",borderBottom:"1px solid var(--border)",marginBottom:24}}>
           {tabs.map(function(t){return(
             <button key={t.id} onClick={function(){setTab(t.id);}}
@@ -1295,7 +1280,7 @@ function DoctorPage({docId,docSlug,onBook,onBack}){
           );})}
         </div>
 
-        {/* Tab: Portfolio */}
+        {}
         {tab==="portfolio"&&(
           <div className="fade-in">
             {portfolio.length===0?(
@@ -1344,7 +1329,7 @@ function DoctorPage({docId,docSlug,onBook,onBack}){
           </div>
         )}
 
-        {/* Tab: Bio */}
+        {}
         {tab==="bio"&&(
           <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:20}}>
             {doc.bio&&(
@@ -1377,7 +1362,7 @@ function DoctorPage({docId,docSlug,onBook,onBack}){
           </div>
         )}
 
-        {/* Tab: Specializzazioni */}
+        {}
         {tab==="skills"&&(
           <div className="fade-in">
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
@@ -1405,7 +1390,7 @@ function DoctorPage({docId,docSlug,onBook,onBack}){
           </div>
         )}
 
-        {/* Tab: Dove opera */}
+        {}
         {tab==="dove"&&(
           <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:12}}>
             {locations.length>0?locations.map(function(loc,i){return(
@@ -1436,7 +1421,6 @@ function DoctorPage({docId,docSlug,onBook,onBack}){
     </div>
   );
 }
-
 
 function DoctorProfileModal({doc,onClose,onBook}){
   var _tabState=useState("portfolio");var tab=_tabState[0];var setTab=_tabState[1];
@@ -1475,26 +1459,26 @@ function DoctorProfileModal({doc,onClose,onBook}){
 
       <div onClick={function(e){e.stopPropagation();}} className="scale-in" style={{background:"var(--surface)",borderRadius:"var(--radius-lg)",width:"100%",maxWidth:800,maxHeight:"94vh",overflow:"hidden",display:"flex",flexDirection:"column",boxShadow:"0 40px 120px rgba(26,24,20,0.3)"}}>
 
-        {/* ── HERO ── */}
+        {}
         <div style={{flexShrink:0,position:"relative",overflow:"hidden"}}>
           <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"rgba(0,0,0,0.35)",backdropFilter:"blur(4px)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:"50%",width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#fff",fontSize:16,zIndex:10}}>✕</button>
 
-          {/* Cover photo */}
+          {}
           <div style={{height:160,background:doc.cover_url?"url("+doc.cover_url+") center/cover":"linear-gradient(135deg,"+doc.accent+"20 0%,var(--bg2) 50%,"+doc.accent+"10 100%)",position:"relative"}}>
             {!doc.cover_url&&(
               <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:0.15}}>
                 <div style={{width:300,height:300,borderRadius:"50%",background:"radial-gradient(circle,"+doc.accent+" 0%,transparent 70%)"}}/>
               </div>
             )}
-            {/* Gradient fade bottom */}
+            {}
             <div style={{position:"absolute",bottom:0,left:0,right:0,height:80,background:"linear-gradient(to bottom,transparent,var(--surface))"}}/>
           </div>
 
-          {/* Profile info overlapping cover */}
+          {}
           <div style={{padding:"0 1.75rem 0",position:"relative",marginTop:-50}}>
-            {/* Avatar + name row */}
+            {}
             <div style={{display:"flex",gap:16,alignItems:"flex-end",marginBottom:14}}>
-              {/* Avatar */}
+              {}
               <div style={{position:"relative",flexShrink:0}}>
                 {doc.photo_url?(
                   <img src={doc.photo_url} alt={doc.name} style={{width:96,height:96,borderRadius:"50%",objectFit:"cover",border:"3px solid var(--surface)",boxShadow:"0 4px 16px rgba(0,0,0,0.2)"}}/>
@@ -1524,14 +1508,14 @@ function DoctorProfileModal({doc,onClose,onBook}){
               </div>
             </div>
 
-            {/* Bio preview se presente */}
+            {}
             {doc.bio&&(
               <div style={{padding:"12px 16px",background:"var(--bg2)",borderRadius:"var(--radius-lg)",border:"1px solid var(--border)",marginBottom:14,borderLeft:"3px solid var(--gold)"}}>
                 <p style={{fontSize:13,color:"var(--text2)",lineHeight:1.7,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{doc.bio}</p>
               </div>
             )}
 
-            {/* Stats strip */}
+            {}
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:14}}>
               {[
                 {v:doc.rating+"/5",l:"Rating",icon:"⭐"},
@@ -1547,7 +1531,7 @@ function DoctorProfileModal({doc,onClose,onBook}){
               );})}
             </div>
 
-            {/* CTA */}
+            {}
             <div style={{display:"flex",gap:10,marginBottom:14}}>
               <button onClick={function(){onClose();onBook(doc);}}
                 style={{flex:2,padding:"13px",borderRadius:"var(--radius-lg)",background:"var(--gold)",border:"none",color:"#fff",fontSize:14,fontWeight:700,boxShadow:"0 4px 20px rgba(200,169,110,0.35)",cursor:"pointer"}}
@@ -1563,7 +1547,7 @@ function DoctorProfileModal({doc,onClose,onBook}){
               )}
             </div>
 
-            {/* Tabs */}
+            {}
             <div style={{display:"flex",gap:0,borderBottom:"1px solid var(--border)"}}>
               {tabs.map(function(t){return(
                 <button key={t.id} onClick={function(){setTab(t.id);}}
@@ -1575,10 +1559,10 @@ function DoctorProfileModal({doc,onClose,onBook}){
           </div>
         </div>
 
-        {/* ── TAB CONTENT ── */}
+        {}
         <div style={{flex:1,overflowY:"auto",background:"var(--bg)"}}>
 
-          {/* BIO */}
+          {}
           {tab==="bio"&&(
             <div className="fade-in" style={{padding:"1.75rem 2rem"}}>
 
@@ -1593,7 +1577,7 @@ function DoctorProfileModal({doc,onClose,onBook}){
                 </div>
               )}
 
-              {/* Servizi */}
+              {}
               <div style={{marginBottom:"2rem"}}>
                 <p style={{fontSize:11,color:"var(--gold)",fontWeight:700,letterSpacing:"0.1em",marginBottom:12}}>TRATTAMENTI OFFERTI</p>
                 <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
@@ -1608,7 +1592,7 @@ function DoctorProfileModal({doc,onClose,onBook}){
                 </div>
               </div>
 
-              {/* Info cards */}
+              {}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 {[
                   {icon:"💶",label:"Prima visita da",value:"€"+doc.price},
@@ -1625,7 +1609,7 @@ function DoctorProfileModal({doc,onClose,onBook}){
             </div>
           )}
 
-          {/* SPECIALIZZAZIONI */}
+          {}
           {tab==="skills"&&(
             <div className="fade-in" style={{padding:"1.75rem 2rem"}}>
               <p style={{fontSize:11,color:"var(--gold)",fontWeight:700,letterSpacing:"0.1em",marginBottom:16}}>AREE DI EXPERTISE</p>
@@ -1659,7 +1643,7 @@ function DoctorProfileModal({doc,onClose,onBook}){
             </div>
           )}
 
-          {/* PORTFOLIO */}
+          {}
           {tab==="portfolio"&&(
             <div className="fade-in" style={{padding:"1.75rem 2rem"}}>
               {PORTFOLIO.length===0?(
@@ -1675,15 +1659,15 @@ function DoctorProfileModal({doc,onClose,onBook}){
                     {PORTFOLIO.map(function(item){
                       return(
                         <div key={item.id} style={{background:"var(--surface)",borderRadius:"var(--radius-lg)",border:"1px solid var(--border)",overflow:"hidden"}}>
-                          {/* Header caso */}
+                          {}
                           <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid var(--border)"}}>
                             {item.tag&&<span style={{fontSize:11,padding:"3px 10px",borderRadius:99,background:"rgba(200,169,110,0.1)",color:"var(--gold)",border:"1px solid rgba(200,169,110,0.2)",fontWeight:600}}>{item.tag}</span>}
                             <p style={{fontSize:13,fontWeight:700,color:"var(--text)"}}>{item.label}</p>
                             {item.description&&<p style={{fontSize:11,color:"var(--text3)",marginLeft:"auto"}}>{item.description}</p>}
                           </div>
-                          {/* Foto side by side */}
+                          {}
                           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",height:200}}>
-                            {/* PRIMA */}
+                            {}
                             <div style={{position:"relative",overflow:"hidden",cursor:"zoom-in"}}
                               onClick={function(){item.before&&setLightbox({src:item.before,label:item.label+" — PRIMA"});}}>
                               {item.before?(
@@ -1702,7 +1686,7 @@ function DoctorProfileModal({doc,onClose,onBook}){
                                 </div>
                               )}
                             </div>
-                            {/* DOPO */}
+                            {}
                             <div style={{position:"relative",overflow:"hidden",cursor:"zoom-in",borderLeft:"2px solid var(--bg)"}}
                               onClick={function(){item.after&&setLightbox({src:item.after,label:item.label+" — DOPO"});}}>
                               {item.after?(
@@ -1731,7 +1715,7 @@ function DoctorProfileModal({doc,onClose,onBook}){
             </div>
           )}
 
-          {/* DOVE OPERA */}
+          {}
           {tab==="dove"&&(
             <div className="fade-in" style={{padding:"1.75rem 2rem"}}>
               <p style={{fontSize:11,color:"var(--gold)",fontWeight:700,letterSpacing:"0.1em",marginBottom:16}}>STUDI E SEDI</p>
@@ -1773,7 +1757,6 @@ function DoctorProfileModal({doc,onClose,onBook}){
     </div>
   );
 }
-
 
 function BookModal({doc,onClose,user}){
   var stepState=useState(0);var step=stepState[0];var setStep=stepState[1];
@@ -1867,7 +1850,7 @@ function BookModal({doc,onClose,user}){
     });
     setSaving(false);
     if(res.error){setErr(res.error.message);return;}
-    // Salva l'ID appuntamento creato
+
     var apptData=await sb.from("appointments").select("id").eq("patient_id",patientId).eq("doctor_id",doc.supabase_id).order("created_at",{ascending:false}).limit(1).single();
     if(apptData.data) setLastApptId(apptData.data.id);
     setStep(4);
@@ -2024,8 +2007,6 @@ function BookModal({doc,onClose,user}){
   );
 }
 
-
-
 function LoginPage({onLogin,nav}){
   var _roleState=useState("patient");var role=_roleState[0];var setRole=_roleState[1];
   var _emailState=useState("");var email=_emailState[0];var setEmail=_emailState[1];
@@ -2075,7 +2056,6 @@ function LoginPage({onLogin,nav}){
     </div>
   );
 }
-
 
 function RegisterPage({onLogin,nav}){
   var _stepState=useState(1);var step=_stepState[0];var setStep=_stepState[1];
@@ -2186,15 +2166,13 @@ function DocDashboard({user}){
   var _reminderState=useState(false);var showReminder=_reminderState[0];var setShowReminder=_reminderState[1];
   var _reminderCheckedState=useState(false);var reminderChecked=_reminderCheckedState[0];var setReminderChecked=_reminderCheckedState[1];
 
-  // Expose reminder trigger globally
   useEffect(function(){window._showReminder=function(){setShowReminder(true);}; return function(){window._showReminder=null;};},[]);
 
-  // Show reminder popup if there are unreviewed past appointments
   useEffect(function(){
     if(reminderChecked) return;
     setReminderChecked(true);
     var checkAndShow=function(){
-      // Rispetta snooze: non mostrare se l'utente ha rimandato e le 2h non sono passate
+
       var snooze=localStorage.getItem("glowup_reminder_snooze");
       if(snooze&&Date.now()<parseInt(snooze)) return;
       var TODAY=new Date().toISOString().slice(0,10);
@@ -2207,10 +2185,10 @@ function DocDashboard({user}){
         .limit(1)
         .then(function(res){
           if(!res.error&&res.data&&res.data.length>0){
-            // Arretrati → mostra sempre (rispettando snooze sopra)
+
             setShowReminder(true);
           } else {
-            // Nessun arretrato → solo nelle fasce orarie
+
             var hour=new Date().getHours();
             var isEvening=(hour>=17&&hour<=23);
             var isMorning=(hour>=8&&hour<=10);
@@ -2225,9 +2203,9 @@ function DocDashboard({user}){
         });
     };
     checkAndShow();
-    // Ricontrolla ogni 2 ore (intervallo)
+
     var interval=setInterval(checkAndShow, 2*60*60*1000);
-    // Ricontrolla anche quando il medico torna sulla tab
+
     var onFocus=function(){checkAndShow();};
     window.addEventListener("focus",onFocus);
     return function(){clearInterval(interval);window.removeEventListener("focus",onFocus);};
@@ -2251,7 +2229,7 @@ function DocDashboard({user}){
   return(
     <div className="layout-full">
       <Header user={user} onLogout={()=>window._logout()} nav={()=>{}} cur="dashboard"/>
-      {/* Overlay mobile */}
+      {}
       <div className="layout-sidebar" style={{padding:"1rem 10px"}}>
         <p style={{fontSize:9,fontWeight:700,letterSpacing:"0.1em",color:"var(--text3)",padding:"6px 14px 10px"}}>AREA MEDICO</p>
         {nav.map(item=>(
@@ -2363,7 +2341,6 @@ function DocOverview({user}){
   );
 }
 
-
 function DocCalendar({user}){
   var todayD=new Date();
   var _viewState=useState("day");var view=_viewState[0];var setView=_viewState[1];
@@ -2387,7 +2364,6 @@ function DocCalendar({user}){
   var DAYS_MIN=["L","M","M","G","V","S","D"];
   var HOURS=Array.from({length:25},function(_,i){return 8+i*0.5;}).filter(function(h){return h<=20;});
 
-  // Colori per trattamento
   var treatColor=function(service){
     if(!service) return "#c8a96e";
     var s=service.toLowerCase();
@@ -2423,7 +2399,7 @@ function DocCalendar({user}){
         if(!res.error&&res.data) setAppts(res.data);
         setLoading(false);
       });
-    // Carica slot bloccati da localStorage
+
     var stored=localStorage.getItem("blocked_"+user.id);
     if(stored) setBlocked(JSON.parse(stored));
   },[user]);
@@ -2452,12 +2428,10 @@ function DocCalendar({user}){
     });
   };
 
-  // Navigazione
   var prevDay=function(){setSelDate(function(d){return addDays(d,-1);});};
   var nextDay=function(){setSelDate(function(d){return addDays(d,1);});};
   var goToday=function(){setSelDate(new Date());};
 
-  // Settimana corrente
   var getWeekDays=function(d){
     var day=d.getDay();
     var mon=addDays(d,-(day===0?6:day-1));
@@ -2465,7 +2439,6 @@ function DocCalendar({user}){
   };
   var weekDays=getWeekDays(selDate);
 
-  // Mini calendario
   var miniYear=miniMonth.getFullYear();
   var miniMon=miniMonth.getMonth();
   var miniFirst=new Date(miniYear,miniMon,1).getDay();
@@ -2477,14 +2450,13 @@ function DocCalendar({user}){
   var isToday=function(d){return dateStr(d)===dateStr(todayD);};
   var isSel=function(d){return dateStr(d)===dateStr(selDate);};
 
-  // Slot height: each 30min = 48px
   var SLOT_H=48;
 
   return(
     <div className="fade-in" style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:16,alignItems:"flex-start"}}>
-      {/* Sidebar sinistra */}
+      {}
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        {/* Mini calendario */}
+        {}
         <Card style={{padding:"14px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
             <p style={{fontSize:12,fontWeight:700}}>{MONTHS[miniMon]+" "+miniYear}</p>
@@ -2515,7 +2487,7 @@ function DocCalendar({user}){
           <button onClick={goToday} style={{width:"100%",marginTop:10,padding:"6px",borderRadius:"var(--radius)",background:"var(--bg2)",border:"1px solid var(--border)",color:"var(--text2)",fontSize:11,cursor:"pointer",fontWeight:600}}>Oggi</button>
         </Card>
 
-        {/* Legenda trattamenti */}
+        {}
         <Card style={{padding:"14px"}}>
           <p style={{fontSize:10,fontWeight:700,color:"var(--text3)",letterSpacing:1,marginBottom:10}}>TRATTAMENTI</p>
           {[["Filler/Riempitivi","#c8a96e"],["Botox/Tossina","#5b8dee"],["Rinofiller","#9b7fd4"],["Laser/Peeling","#e06b4a"],["Visita/Consulto","#2dc889"],["Biorivitalizzazione","#4ecdc4"]].map(function(t){return(
@@ -2527,9 +2499,9 @@ function DocCalendar({user}){
         </Card>
       </div>
 
-      {/* Area calendario principale */}
+      {}
       <div>
-        {/* Header navigazione */}
+        {}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <button onClick={prevDay} style={{padding:"6px 10px",borderRadius:"var(--radius)",background:"var(--surface)",border:"1px solid var(--border)",cursor:"pointer",color:"var(--text2)",fontSize:14}}>‹</button>
@@ -2547,7 +2519,7 @@ function DocCalendar({user}){
           </div>
         </div>
 
-        {/* VISTA GIORNO */}
+        {}
         {view==="day"&&(
           <Card style={{padding:0,overflow:"hidden"}}>
             <div style={{overflowY:"auto",maxHeight:"calc(100vh - 220px)"}}>
@@ -2559,12 +2531,12 @@ function DocCalendar({user}){
                 var isCurrentHour=isToday(selDate)&&Math.floor(todayD.getHours()+(todayD.getMinutes()/60))===Math.floor(hour)&&(todayD.getMinutes()<30)===isHalf;
                 return(
                   <div key={hour} style={{display:"flex",minHeight:SLOT_H+"px",borderBottom:"1px solid "+(isHalf?"transparent":"var(--border)"),position:"relative",background:blk?"rgba(196,85,53,0.04)":isCurrentHour?"rgba(200,169,110,0.06)":"transparent"}}>
-                    {/* Ora */}
+                    {}
                     <div style={{width:56,flexShrink:0,padding:"4px 8px 0",textAlign:"right"}}>
                       {!isHalf&&<p style={{fontSize:10,color:isCurrentHour?"var(--gold)":"var(--text3)",fontWeight:isCurrentHour?700:400}}>{formatHour(hour)}</p>}
                     </div>
                     <div style={{width:1,background:"var(--border)",flexShrink:0}}/>
-                    {/* Slot content */}
+                    {}
                     <div style={{flex:1,padding:"3px 8px",position:"relative",cursor:slotAppts.length===0&&!blk?"pointer":"default"}}
                       onClick={function(){if(slotAppts.length===0&&!blk) setNewSlot({date:ds,hour:hour});}}>
                       {blk?(
@@ -2589,14 +2561,14 @@ function DocCalendar({user}){
                           <p style={{fontSize:10,color:"transparent",transition:"color .15s"}} className="slot-hint">+ Blocca slot</p>
                         </div>
                       )}
-                      {/* Pulsante blocca su hover per slot vuoti */}
+                      {}
                       {slotAppts.length===0&&!blk&&(
                         <button onClick={function(e){e.stopPropagation();toggleBlock(ds,hour);}}
                           style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",background:"none",border:"1px solid var(--border)",borderRadius:"var(--radius)",padding:"2px 8px",fontSize:9,color:"var(--text3)",cursor:"pointer",opacity:0}}
                           className="block-btn">🔒</button>
                       )}
                     </div>
-                    {/* Linea ora corrente */}
+                    {}
                     {isCurrentHour&&<div style={{position:"absolute",left:56,right:0,top:0,height:2,background:"var(--gold)",zIndex:2}}/>}
                   </div>
                 );
@@ -2605,10 +2577,10 @@ function DocCalendar({user}){
           </Card>
         )}
 
-        {/* VISTA SETTIMANA */}
+        {}
         {view==="week"&&(
           <Card style={{padding:0,overflow:"hidden"}}>
-            {/* Header giorni */}
+            {}
             <div style={{display:"grid",gridTemplateColumns:"56px repeat(7,1fr)",borderBottom:"1px solid var(--border)"}}>
               <div/>
               {weekDays.map(function(d,i){
@@ -2655,7 +2627,7 @@ function DocCalendar({user}){
           </Card>
         )}
 
-        {/* VISTA MESE */}
+        {}
         {view==="month"&&(
           <Card style={{padding:0,overflow:"hidden"}}>
             <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:"1px solid var(--border)"}}>
@@ -2700,7 +2672,7 @@ function DocCalendar({user}){
         )}
       </div>
 
-      {/* Modal dettaglio appuntamento */}
+      {}
       {selAppt&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={function(){setSelAppt(null);setCalReschedMode(false);setCalNewDate("");setCalNewTime("");setCalCancelMode(null);setCalCancelReason("");setCalCancelCustom("");}}>
           <div className="fade-in" style={{background:"var(--surface)",borderRadius:"var(--radius-lg)",padding:24,maxWidth:400,width:"100%",border:"1px solid var(--border)"}} onClick={function(e){e.stopPropagation();}}>
@@ -2764,7 +2736,7 @@ function DocCalendar({user}){
               </div>
             )}
 
-            {/* FLUSSO CANCELLAZIONE */}
+            {}
             {calCancelMode==="ask"&&(
               <div className="fade-in" style={{marginTop:12,background:"var(--bg2)",borderRadius:"var(--radius)",padding:14,border:"1px solid rgba(196,85,53,0.2)"}}>
                 <p style={{fontSize:13,fontWeight:700,marginBottom:4}}>Vuoi ripianificare o annullare?</p>
@@ -2802,7 +2774,7 @@ function DocCalendar({user}){
                       var reason=calCancelReason==="Altro"?calCancelCustom:calCancelReason;
                       await sb.from("appointments").update({status:"cancelled",notes:"Annullato: "+reason}).eq("id",selAppt.id);
                       setAppts(function(prev){return prev.filter(function(a){return a.id!==selAppt.id;});});
-                      // Notifica paziente in chat
+
                       var threadRes=await sb.from("chat_threads").select("id").eq("patient_id",selAppt.patient_id).eq("doctor_id",user.id).eq("status","open").limit(1).maybeSingle();
                       if(threadRes.data){
                         var msg="Il Dr. "+user.name+" ha annullato l'appuntamento per "+selAppt.service+" del "+selAppt.date+". Motivo: "+reason+". Puoi prenotare un nuovo appuntamento dal marketplace.";
@@ -2821,7 +2793,7 @@ function DocCalendar({user}){
         </div>
       )}
 
-      {/* Modal scheda trattamento da calendario */}
+      {}
       {showTreatForm&&selAppt&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1001,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:20,overflowY:"auto"}} onClick={function(){setShowTreatForm(false);}}>
           <div className="fade-in" style={{background:"var(--surface)",borderRadius:"var(--radius-lg)",padding:24,maxWidth:560,width:"100%",border:"1px solid var(--border)",margin:"20px auto"}} onClick={function(e){e.stopPropagation();}}>
@@ -2842,7 +2814,7 @@ function DocCalendar({user}){
         </div>
       )}
 
-      {/* Modal nuovo blocco */}
+      {}
       {newSlot&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={function(){setNewSlot(null);}}>
           <div className="fade-in" style={{background:"var(--surface)",borderRadius:"var(--radius-lg)",padding:24,maxWidth:320,width:"100%",border:"1px solid var(--border)"}} onClick={function(e){e.stopPropagation();}}>
@@ -3051,7 +3023,7 @@ function DocPayments({user}){
         <button onClick={function(){setShowForm(true);}} style={{padding:"8px 16px",borderRadius:"var(--radius)",background:"var(--gold)",border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Nuovo preventivo</button>
       </div>
 
-      {/* Sommario */}
+      {}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
         {[["Totale preventivato","€ "+totalAll.toFixed(2),"var(--text)"],["Incassato","€ "+totalPaid.toFixed(2),"var(--teal)"],["Da incassare","€ "+(totalAll-totalPaid).toFixed(2),"var(--gold)"]].map(function(s){return(
           <Card key={s[0]} style={{textAlign:"center"}}>
@@ -3061,7 +3033,7 @@ function DocPayments({user}){
         );})}
       </div>
 
-      {/* Filtri */}
+      {}
       <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
         {["all","draft","sent","partial","paid","cancelled"].map(function(f){
           var labels={all:"Tutti",draft:"Bozze",sent:"Inviati",partial:"Acconti",paid:"Pagati",cancelled:"Annullati"};
@@ -3077,7 +3049,7 @@ function DocPayments({user}){
         </select>
       </div>
 
-      {/* Form nuovo preventivo */}
+      {}
       {showForm&&(
         <Card style={{marginBottom:16,border:"1px solid rgba(200,169,110,0.3)"}}>
           <p style={{fontSize:14,fontWeight:700,marginBottom:12}}>Nuovo preventivo</p>
@@ -3093,15 +3065,13 @@ function DocPayments({user}){
         </Card>
       )}
 
-      {/* Lista */}
+      {}
       <Card>
         <PaymentList payments={filtered} onStatusChange={updateStatus} onDelete={deletePayment}/>
       </Card>
     </div>
   );
 }
-
-
 
 function PatientPayments({user,patientId,patientName}){
   var _paymentsState=useState([]);var payments=_paymentsState[0];var setPayments=_paymentsState[1];
@@ -3203,7 +3173,7 @@ function TreatmentNoteForm({user,patientId,patientName,appointmentId,service,dat
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      {/* Servizio e data */}
+      {}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
         <div>
           <p style={{fontSize:11,color:"var(--text3)",marginBottom:4,fontWeight:600}}>TRATTAMENTO</p>
@@ -3217,7 +3187,7 @@ function TreatmentNoteForm({user,patientId,patientName,appointmentId,service,dat
         </div>
       </div>
 
-      {/* Note cliniche */}
+      {}
       <div>
         <p style={{fontSize:11,color:"var(--text3)",marginBottom:4,fontWeight:600}}>NOTE CLINICHE</p>
         <textarea value={notes} onChange={function(e){setNotes(e.target.value);}} rows={4}
@@ -3225,7 +3195,7 @@ function TreatmentNoteForm({user,patientId,patientName,appointmentId,service,dat
           style={{width:"100%",padding:"8px 10px",borderRadius:"var(--radius)",border:"1px solid var(--border)",background:"var(--bg2)",color:"var(--text)",fontSize:13,resize:"vertical",fontFamily:"inherit",lineHeight:1.6}}/>
       </div>
 
-      {/* Prodotti usati */}
+      {}
       <div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <p style={{fontSize:11,color:"var(--text3)",fontWeight:600}}>PRODOTTI UTILIZZATI</p>
@@ -3250,7 +3220,7 @@ function TreatmentNoteForm({user,patientId,patientName,appointmentId,service,dat
         </div>
       </div>
 
-      {/* Foto pre/post */}
+      {}
       <div>
         <p style={{fontSize:11,color:"var(--text3)",marginBottom:8,fontWeight:600}}>FOTO PRE / POST</p>
         <div style={{display:"flex",gap:8,marginBottom:10}}>
@@ -3261,35 +3231,7 @@ function TreatmentNoteForm({user,patientId,patientName,appointmentId,service,dat
             </button>;
           })}
         </div>
-        <input ref={photoInputRef} type="file" accept="image/*" multiple style={{display:"none"}}
-          onChange={function(e){handlePhotos(e.target.files,photoType);e.target.value="";}}/>
-
-        {(prePhotos.length>0||postPhotos.length>0)&&(
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            {[["pre","PRE",prePhotos],["post","POST",postPhotos]].map(function(col){
-              if(col[2].length===0) return null;
-              return(
-                <div key={col[0]}>
-                  <p style={{fontSize:10,color:"var(--text3)",fontWeight:700,marginBottom:6}}>{col[1]} ({col[2].length})</p>
-                  <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                    {col[2].map(function(ph){
-                      return(
-                        <div key={ph.id} style={{position:"relative",width:72,height:72}}>
-                          <img src={ph.data} alt="" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"var(--radius)",border:"1px solid var(--border)"}}/>
-                          <button onClick={function(){removePhoto(ph.id);}}
-                            style={{position:"absolute",top:-4,right:-4,width:18,height:18,borderRadius:"50%",background:"#c45535",border:"none",color:"#fff",fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Azioni */}
+        <input ref={photoInputRef} type="file" accept="image}
       <div style={{display:"flex",gap:8,paddingTop:4}}>
         <button onClick={save} disabled={saving||!svc||!tDate}
           style={{flex:1,padding:"10px",borderRadius:"var(--radius)",background:"var(--gold)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",opacity:(saving||!svc||!tDate)?0.5:1}}>
@@ -3426,7 +3368,6 @@ function PatientTreatmentNotes({user,patientId,patientName}){
   );
 }
 
-
 function DocPortfolio({user}){
   var _itemsState=useState([]);var items=_itemsState[0];var setItems=_itemsState[1];
   var _loadingState=useState(true);var loading=_loadingState[0];var setLoading=_loadingState[1];
@@ -3435,7 +3376,6 @@ function DocPortfolio({user}){
   var _lightboxState=useState(null);var lightbox=_lightboxState[0];var setLightbox=_lightboxState[1];
   var _filterState=useState("all");var filter=_filterState[0];var setFilter=_filterState[1];
 
-  // Tutte le categorie dal TAXONOMY
   var ALL_CATS=Object.entries(TAXONOMY).flatMap(function(e){return e[1].services.map(function(s){return {service:s,area:e[0],color:e[1].color};});});
   var _docServicesState=useState([]);var docServices=_docServicesState[0];var setDocServices=_docServicesState[1];
 
@@ -3478,7 +3418,7 @@ function DocPortfolio({user}){
         <button onClick={function(){setEditing(null);setShowForm(true);}} style={{padding:"8px 16px",borderRadius:"var(--radius)",background:"var(--gold)",border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Aggiungi caso</button>
       </div>
 
-      {/* Filtri categoria */}
+      {}
       {items.length>0&&(
         <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
           {cats.map(function(c){
@@ -3490,7 +3430,7 @@ function DocPortfolio({user}){
         </div>
       )}
 
-      {/* Griglia portfolio */}
+      {}
       {filtered.length===0?(
         <Card style={{textAlign:"center",padding:"4rem"}}>
           <p style={{fontSize:32,marginBottom:12}}>📸</p>
@@ -3503,7 +3443,7 @@ function DocPortfolio({user}){
           {filtered.map(function(item){
             return(
               <Card key={item.id} style={{padding:0,overflow:"hidden",opacity:item.visible?1:0.6}}>
-                {/* Foto prima/dopo */}
+                {}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",height:200,position:"relative"}}>
                   {item.photo_before?(
                     <div style={{position:"relative",overflow:"hidden",cursor:"pointer"}} onClick={function(){setLightbox({item:item,side:"before"});}}>
@@ -3527,14 +3467,14 @@ function DocPortfolio({user}){
                       <p style={{fontSize:10,color:"var(--text3)"}}>Nessuna foto</p>
                     </div>
                   )}
-                  {/* Badge visibilità */}
+                  {}
                   <div style={{position:"absolute",top:6,right:6}}>
                     <span style={{padding:"2px 8px",borderRadius:99,background:item.visible?"rgba(45,200,137,0.9)":"rgba(0,0,0,0.5)",color:"#fff",fontSize:9,fontWeight:700}}>
                       {item.visible?"● Visibile":"○ Nascosto"}
                     </span>
                   </div>
                 </div>
-                {/* Info */}
+                {}
                 <div style={{padding:"12px 14px"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
                     <p style={{fontSize:13,fontWeight:700,flex:1}}>{item.title}</p>
@@ -3555,7 +3495,7 @@ function DocPortfolio({user}){
         </div>
       )}
 
-      {/* Form aggiungi/modifica */}
+      {}
       {showForm&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:1000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:20,overflowY:"auto"}} onClick={function(){setShowForm(false);setEditing(null);}}>
           <div className="fade-in" style={{background:"var(--surface)",borderRadius:"var(--radius-lg)",padding:24,maxWidth:540,width:"100%",border:"1px solid var(--border)",margin:"20px auto"}} onClick={function(e){e.stopPropagation();}}>
@@ -3575,7 +3515,7 @@ function DocPortfolio({user}){
         </div>
       )}
 
-      {/* Lightbox foto */}
+      {}
       {lightbox&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={function(){setLightbox(null);}}>
           <div style={{position:"relative",maxWidth:"90vw",maxHeight:"90vh"}}>
@@ -3586,7 +3526,7 @@ function DocPortfolio({user}){
             </div>
           </div>
           <button onClick={function(){setLightbox(null);}} style={{position:"absolute",top:20,right:20,background:"none",border:"none",color:"#fff",fontSize:28,cursor:"pointer"}}>✕</button>
-          {/* Switcher prima/dopo */}
+          {}
           <div style={{position:"absolute",bottom:20,left:"50%",transform:"translateX(-50%)",display:"flex",gap:8}}>
             {lightbox.item.photo_before&&<button onClick={function(e){e.stopPropagation();setLightbox({item:lightbox.item,side:"before"});}} style={{padding:"6px 16px",borderRadius:99,background:lightbox.side==="before"?"#fff":"rgba(255,255,255,0.2)",color:lightbox.side==="before"?"#000":"#fff",fontSize:11,fontWeight:700,border:"none",cursor:"pointer"}}>PRIMA</button>}
             {lightbox.item.photo_after&&<button onClick={function(e){e.stopPropagation();setLightbox({item:lightbox.item,side:"after"});}} style={{padding:"6px 16px",borderRadius:99,background:lightbox.side==="after"?"var(--gold)":"rgba(255,255,255,0.2)",color:"#fff",fontSize:11,fontWeight:700,border:"none",cursor:"pointer"}}>DOPO</button>}
@@ -3632,7 +3572,7 @@ function PortfolioForm({user,editing,categories,docServices,allCats,onSave,onClo
     } else {
       res=await sb.from("portfolio").insert(data);
     }
-    // Se richiesto, aggiungi la categoria ai servizi del profilo medico
+
     if(!res.error&&addToProfile&&cat&&docServices&&!docServices.includes(cat)){
       var updatedServices=[...docServices,cat];
       await sb.from("doctor_profiles").update({services:updatedServices}).eq("id",user.id);
@@ -3657,7 +3597,7 @@ function PortfolioForm({user,editing,categories,docServices,allCats,onSave,onClo
         var urlRes=sb.storage.from("Doctor media").getPublicUrl(path);
         setter(urlRes.data.publicUrl);
       } else {
-        // fallback to base64
+
         loadImage(file,setter);
       }
       setUploading(false);
@@ -3690,21 +3630,14 @@ function PortfolioForm({user,editing,categories,docServices,allCats,onSave,onClo
             )}
           </div>
         )}
-        <input ref={inputRef} type="file" accept="image/*" style={{display:"none"}} onChange={function(e){var f=e.target.files[0];if(f)uploadToStorage(f);e.target.value="";}}/>
-      </div>
-    );
-  };
-
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      {/* Titolo */}
+        <input ref={inputRef} type="file" accept="image}
       <div>
         <p style={{fontSize:11,color:"var(--text3)",marginBottom:4,fontWeight:600}}>TITOLO CASO *</p>
         <input value={title} onChange={function(e){setTitle(e.target.value);}} placeholder="es. Filler labbra naturale..."
           style={{width:"100%",padding:"8px 10px",borderRadius:"var(--radius)",border:"1px solid var(--border)",background:"var(--bg2)",color:"var(--text)",fontSize:13}}/>
       </div>
 
-      {/* Categoria */}
+      {}
       <div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
           <p style={{fontSize:11,color:"var(--text3)",fontWeight:600}}>CATEGORIA TRATTAMENTO</p>
@@ -3751,7 +3684,7 @@ function PortfolioForm({user,editing,categories,docServices,allCats,onSave,onClo
         </div>
       </div>
 
-      {/* Foto prima/dopo */}
+      {}
       <div>
         <p style={{fontSize:11,color:"var(--text3)",marginBottom:8,fontWeight:600}}>FOTO PRIMA / DOPO</p>
         <div style={{display:"flex",gap:10}}>
@@ -3760,7 +3693,7 @@ function PortfolioForm({user,editing,categories,docServices,allCats,onSave,onClo
         </div>
       </div>
 
-      {/* Descrizione */}
+      {}
       <div>
         <p style={{fontSize:11,color:"var(--text3)",marginBottom:4,fontWeight:600}}>DESCRIZIONE (opzionale)</p>
         <textarea value={desc} onChange={function(e){setDesc(e.target.value);}} rows={2}
@@ -3768,7 +3701,7 @@ function PortfolioForm({user,editing,categories,docServices,allCats,onSave,onClo
           style={{width:"100%",padding:"8px 10px",borderRadius:"var(--radius)",border:"1px solid var(--border)",background:"var(--bg2)",color:"var(--text)",fontSize:12,resize:"none",fontFamily:"inherit"}}/>
       </div>
 
-      {/* Visibilità */}
+      {}
       <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:"var(--radius)",background:"var(--bg2)",border:"1px solid var(--border)"}}>
         <div style={{flex:1}}>
           <p style={{fontSize:12,fontWeight:600,marginBottom:2}}>{vis?"Visibile nel profilo pubblico":"Nascosto dal profilo pubblico"}</p>
@@ -3779,7 +3712,7 @@ function PortfolioForm({user,editing,categories,docServices,allCats,onSave,onClo
         </button>
       </div>
 
-      {/* Azioni */}
+      {}
       <div style={{display:"flex",gap:8}}>
         <button onClick={save} disabled={saving||!title.trim()}
           style={{flex:1,padding:"10px",borderRadius:"var(--radius)",background:"var(--gold)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",opacity:(saving||!title.trim())?0.5:1}}>
@@ -3791,14 +3724,13 @@ function PortfolioForm({user,editing,categories,docServices,allCats,onSave,onClo
   );
 }
 
-
 function FolderUpload({folder,doctorId,patientId,onUpdate}){
   var _dragState=useState(false);var drag=_dragState[0];var setDrag=_dragState[1];
   var _filesState=useState([]);var files=_filesState[0];var setFiles=_filesState[1];
   var inputRef=useRef(null);
 
   useEffect(function(){
-    // Carica file salvati per questa cartella
+
     var key="files_"+doctorId+"_"+patientId+"_"+folder.id;
     var stored=localStorage.getItem(key);
     if(stored) setFiles(JSON.parse(stored));
@@ -3824,7 +3756,7 @@ function FolderUpload({folder,doctorId,patientId,onUpdate}){
       });
     });
     Promise.all(promises).then(function(newF){
-      // Usa aggiornamento funzionale per evitare stale closure su files
+
       setFiles(function(prev){
         var updated=[...prev,...newF];
         localStorage.setItem(keyRef.current,JSON.stringify(updated));
@@ -3853,7 +3785,7 @@ function FolderUpload({folder,doctorId,patientId,onUpdate}){
 
   return(
     <div>
-      {/* Drop zone */}
+      {}
       <div
         onDragOver={function(e){e.preventDefault();setDrag(true);}}
         onDragLeave={function(){setDrag(false);}}
@@ -3875,7 +3807,7 @@ function FolderUpload({folder,doctorId,patientId,onUpdate}){
         <p style={{fontSize:11,color:"var(--text3)"}}>oppure clicca per selezionare</p>
       </div>
 
-      {/* File list */}
+      {}
       {files.length>0&&(
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {files.map(function(f){
@@ -3948,13 +3880,13 @@ function DocPatients({user}){
 
   var openPatient=async function(p){
     setSel(p);setTab("info");setAnamList([]);setApptList([]);setFolders([]);setSelFolder(null);
-    // Carica anamnesi
+
     var aRes=await sb.from("anamnesi").select("*,appointment:appointments!anamnesi_appointment_id_fkey(service,date)").eq("patient_id",p.id).order("created_at",{ascending:false});
     if(!aRes.error&&aRes.data) setAnamList(aRes.data);
-    // Carica storico appuntamenti
+
     var apRes=await sb.from("appointments").select("*").eq("patient_id",p.id).eq("doctor_id",user.id).order("date",{ascending:false});
     if(!apRes.error&&apRes.data) setApptList(apRes.data);
-    // Carica cartelle custom (da localStorage per ora)
+
     var stored=localStorage.getItem("folders_"+user.id+"_"+p.id);
     if(stored) setFolders(JSON.parse(stored));
   };
@@ -3972,14 +3904,13 @@ function DocPatients({user}){
 
   if(loading) return <div className="fade-in" style={{textAlign:"center",padding:"3rem"}}><p style={{color:"var(--text3)",fontSize:12}}>Caricamento pazienti...</p></div>;
 
-  // Vista dettaglio paziente
   if(sel) return(
     <div className="fade-in">
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
         <button onClick={function(){setSel(null);}} style={{background:"none",border:"none",cursor:"pointer",color:"var(--text3)",fontSize:13,display:"flex",alignItems:"center",gap:4,padding:0}}>← Pazienti</button>
       </div>
 
-      {/* Header paziente */}
+      {}
       <div style={{display:"flex",gap:16,alignItems:"flex-start",marginBottom:20}}>
         <Av ini={sel.name.split(" ").map(function(n){return n[0];}).join("").slice(0,2).toUpperCase()} sz={56} col={sel.color||"#c8a96e"}/>
         <div style={{flex:1}}>
@@ -3997,7 +3928,7 @@ function DocPatients({user}){
       </div>
       <div style={{marginBottom:16}}><PatientStatsCard patientId={sel.id}/></div>
 
-      {/* Tab bar */}
+      {}
       <div style={{display:"flex",gap:4,marginBottom:20,borderBottom:"1px solid var(--border)",paddingBottom:0}}>
         {["info","trattamenti","cartelle","pagamenti","storico"].map(function(t){
           var labels={info:"Anagrafica",trattamenti:"Trattamenti",cartelle:"Cartelle",pagamenti:"Pagamenti",storico:"Storico visite"};
@@ -4009,7 +3940,7 @@ function DocPatients({user}){
         })}
       </div>
 
-      {/* Tab: Anagrafica */}
+      {}
       {tab==="info"&&(
         <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:12}}>
           <Card>
@@ -4026,10 +3957,10 @@ function DocPatients({user}){
         </div>
       )}
 
-      {/* Tab: Cartelle */}
+      {}
       {tab==="cartelle"&&(
         <div className="fade-in">
-          {/* Se cartella selezionata mostra contenuto */}
+          {}
           {selFolder?(
             <div>
               <button onClick={function(){setSelFolder(null);}} style={{background:"none",border:"none",cursor:"pointer",color:"var(--text3)",fontSize:12,marginBottom:16,padding:0}}>← Cartelle</button>
@@ -4090,13 +4021,13 @@ function DocPatients({user}){
                 </div>
               )}
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12}}>
-                {/* Cartella Anamnesi sempre presente */}
+                {}
                 <div onClick={function(){setSelFolder("anamnesi");}} style={{cursor:"pointer",padding:"20px 16px",borderRadius:"var(--radius-lg)",background:"var(--bg2)",border:"1px solid var(--border)",textAlign:"center",transition:"all .2s"}} onMouseEnter={function(e){e.currentTarget.style.borderColor="var(--gold)";}} onMouseLeave={function(e){e.currentTarget.style.borderColor="var(--border)";}}>
                   <p style={{fontSize:28,marginBottom:8}}>📋</p>
                   <p style={{fontSize:13,fontWeight:700,marginBottom:4}}>Anamnesi</p>
                   <p style={{fontSize:11,color:"var(--text3)"}}>{anamList.length} {anamList.length===1?"file":"file"}</p>
                 </div>
-                {/* Cartelle custom */}
+                {}
                 {folders.map(function(f){return(
                   <div key={f.id} onClick={function(){setSelFolder(f);}} style={{cursor:"pointer",padding:"20px 16px",borderRadius:"var(--radius-lg)",background:"var(--bg2)",border:"1px solid var(--border)",textAlign:"center",transition:"all .2s"}} onMouseEnter={function(e){e.currentTarget.style.borderColor="var(--gold)";}} onMouseLeave={function(e){e.currentTarget.style.borderColor="var(--border)";}}>
                     <p style={{fontSize:28,marginBottom:8}}>📁</p>
@@ -4110,21 +4041,21 @@ function DocPatients({user}){
         </div>
       )}
 
-      {/* Tab: Trattamenti */}
+      {}
       {tab==="trattamenti"&&(
         <div className="fade-in">
           <PatientTreatmentNotes user={user} patientId={sel.id} patientName={sel.name}/>
         </div>
       )}
 
-      {/* Tab: Pagamenti */}
+      {}
       {tab==="pagamenti"&&(
         <div className="fade-in">
           <PatientPayments user={user} patientId={sel.id} patientName={sel.name}/>
         </div>
       )}
 
-      {/* Tab: Storico visite */}
+      {}
       {tab==="storico"&&(
         <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:10}}>
           {apptList.length===0?(
@@ -4149,7 +4080,6 @@ function DocPatients({user}){
     </div>
   );
 
-  // Vista lista pazienti
   return(
     <div className="fade-in">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
@@ -4190,13 +4120,8 @@ function DocPatients({user}){
   );
 }
 
-
-
-// ─── RELIABILITY CALCULATOR (credit system) ───────────────────────────────────
 function calcReliability(appointments){
-  // Crediti iniziali 8, denominatore base 10 → paziente nuovo parte a 80% 🟢
-  // 1° no-show senza preavviso → max ~55% 🟡 (non crolla in rosso)
-  // Solo dal 2° no-show consecutivo entra in rosso
+
   var INITIAL_CREDITS=8;
   var BASE_MAX=10;
   var esitati=appointments.filter(function(a){return a.visit_outcome;});
@@ -4214,7 +4139,6 @@ function calcReliability(appointments){
   return {score:score,credits:credits,maxCredits:maxCredits,esitati:esitati.length};
 }
 
-// ─── SLOT RISK PANEL ──────────────────────────────────────────────────────────
 function SlotRiskPanel({appointment, doctorId, patientId, patientName}){
   var _reliabilityState=useState(null);var reliability=_reliabilityState[0];var setReliability=_reliabilityState[1];
   var _slotState=useState(null);var slot=_slotState[0];var setSlot=_slotState[1];
@@ -4227,7 +4151,6 @@ function SlotRiskPanel({appointment, doctorId, patientId, patientName}){
   var _tabState=useState("platform");var tab=_tabState[0];var setTab=_tabState[1];
   var _searchingState=useState(false);var searching=_searchingState[0];var setSearching=_searchingState[1];
 
-  // Carica affidabilità paziente
   useEffect(function(){
     if(!patientId) return;
     sb.from("appointments").select("id,visit_outcome,no_show,no_show_warned").eq("patient_id",patientId).then(function(res){
@@ -4238,7 +4161,6 @@ function SlotRiskPanel({appointment, doctorId, patientId, patientName}){
     });
   },[patientId]);
 
-  // Carica slot esistente per questo appuntamento
   useEffect(function(){
     if(!appointment||!doctorId) return;
     sb.from("waitlist_slots").select("*, waitlist_entries(*)").eq("appointment_id",appointment.id).eq("doctor_id",doctorId).maybeSingle().then(function(res){
@@ -4249,7 +4171,6 @@ function SlotRiskPanel({appointment, doctorId, patientId, patientName}){
     });
   },[appointment,doctorId]);
 
-  // Cerca pazienti sulla piattaforma
   useEffect(function(){
     if(!searchQuery||searchQuery.length<2){setSearchResults([]);return;}
     var t=setTimeout(function(){
@@ -4331,7 +4252,6 @@ function SlotRiskPanel({appointment, doctorId, patientId, patientName}){
     setEntries(function(prev){return prev.filter(function(e){return e.id!==entryId;});});
   };
 
-  // Calcola livello di rischio
   var riskLevel=reliability===null?"unknown":reliability>=80?"low":reliability>=50?"medium":"high";
   var riskConfig={
     unknown:{color:"var(--text3)",bg:"var(--bg2)",border:"var(--border)",icon:"❓",label:"Dati insufficienti",sub:"Prima visita con te — nessuno storico disponibile",dot:"#8c8880"},
@@ -4343,7 +4263,7 @@ function SlotRiskPanel({appointment, doctorId, patientId, patientName}){
 
   return(
     <div style={{marginBottom:20}}>
-      {/* Indicatore rischio */}
+      {}
       <div style={{padding:"12px 16px",borderRadius:"var(--radius-lg)",background:rc.bg,border:"1px solid "+rc.border,marginBottom:slot?12:0}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -4365,10 +4285,10 @@ function SlotRiskPanel({appointment, doctorId, patientId, patientName}){
         </div>
       </div>
 
-      {/* Pannello lista d'attesa */}
+      {}
       {slot&&(
         <div className="fade-in" style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden"}}>
-          {/* Header lista */}
+          {}
           <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--bg2)"}}>
             <p style={{fontSize:11,fontWeight:700,color:"var(--text2)",letterSpacing:"0.06em"}}>LISTA D'ATTESA — {appointment.service} · {appointment.date} {appointment.time}</p>
             <button onClick={function(){setShowForm(function(v){return !v;});}}
@@ -4377,10 +4297,10 @@ function SlotRiskPanel({appointment, doctorId, patientId, patientName}){
             </button>
           </div>
 
-          {/* Form aggiunta */}
+          {}
           {showForm&&(
             <div className="fade-in" style={{padding:"14px 16px",borderBottom:"1px solid var(--border)",background:"var(--bg2)"}}>
-              {/* Tab selezione */}
+              {}
               <div style={{display:"flex",gap:6,marginBottom:14}}>
                 {[["platform","🔍 Cerca su GlowUp"],["manual","✏️ Aggiungi manuale"]].map(function(t){return(
                   <button key={t[0]} onClick={function(){setTab(t[0]);}}
@@ -4441,7 +4361,7 @@ function SlotRiskPanel({appointment, doctorId, patientId, patientName}){
             </div>
           )}
 
-          {/* Lista candidati */}
+          {}
           {entries.length===0?(
             <div style={{padding:"20px",textAlign:"center"}}>
               <p style={{fontSize:12,color:"var(--text3)"}}>Nessun candidato ancora — aggiungi il primo sostituto</p>
@@ -4517,7 +4437,6 @@ function DocRequests({user}){
     return function(){clearInterval(interval);};
   },[fetchReqs]);
 
-  // Sync sel con dati aggiornati dal polling
   useEffect(function(){
     if(sel) setSel(function(prev){
       var updated=reqs.find(function(r){return r.id===prev.id;});
@@ -4527,12 +4446,12 @@ function DocRequests({user}){
 
   var openDetail=async function(r){
     setSel(r);setMode(null);setAnam(null);setAnamLoad(true);
-    // Prima cerca per appointment_id, poi fallback per patient_id
+
     var res=await sb.from("anamnesi").select("*").eq("appointment_id",r.id).maybeSingle();
     if(!res.error&&res.data){
       setAnam(res.data);
     } else {
-      // Fallback: prendi l'anamnesi piu recente del paziente (qualsiasi medico)
+
       var res2=await sb.from("anamnesi").select("*").eq("patient_id",r.patient_id).order("created_at",{ascending:false}).limit(1).maybeSingle();
       if(!res2.error&&res2.data) setAnam(res2.data);
     }
@@ -4546,13 +4465,13 @@ function DocRequests({user}){
     setSaving(true);
     if(action==="confirm"||action==="accept_counter"){
       var updates={status:"confirmed",notes:""};
-      // Se è una controproposta, aggiorna anche data/ora con quella proposta dal paziente
+
       if(action==="accept_counter"&&sel.notes){
         var cm=sel.notes.match(/Controproposta paziente: (\S+) alle (\S+)/);
         if(cm){updates.date=cm[1];updates.time=cm[2];}
       }
       await sb.from("appointments").update(updates).eq("id",sel.id);
-      // Notifica paziente
+
       var tRes=await sb.from("chat_threads").select("id").eq("patient_id",sel.patient_id).eq("doctor_id",user.id).eq("status","open").limit(1).maybeSingle();
       if(tRes.data&&action==="accept_counter"){
         var cm2=sel.notes&&sel.notes.match(/Controproposta paziente: (\S+) alle (\S+)/);
@@ -4570,16 +4489,16 @@ function DocRequests({user}){
       var updRes=await sb.from("appointments").update({status:"rescheduled",notes:"Proposta medico: "+newDate+" alle "+newTime}).eq("id",sel.id);
       if(updRes.error){
         console.error("[Suggest] rescheduled status error:", updRes.error);
-        // Fallback: usa pending con nota speciale
+
         await sb.from("appointments").update({status:"pending",notes:"Proposta medico: "+newDate+" alle "+newTime}).eq("id",sel.id);
       }
-      // Notifica al paziente tramite chat
+
       var threadRes=await sb.from("chat_threads").select("id").eq("patient_id",sel.patient_id).eq("doctor_id",user.id).eq("status","open").limit(1).maybeSingle();
       if(threadRes.data){
         var msg="Il Dr. "+user.name+" ha proposto una nuova data per "+sel.service+": "+newDate+" alle "+newTime+". Vai nella sezione Appuntamenti per accettare, rifiutare o proporre un'altra data.";
         await sb.from("chat_messages").insert({thread_id:threadRes.data.id,sender_type:"doctor",sender_id:user.id,content:msg});
       }
-      // Email notifica al paziente
+
       var patProf=await sb.from("profiles").select("email,name").eq("id",sel.patient_id).single();
       if(patProf.data&&patProf.data.email){
         await fetch("https://tmjrezixlbarryaiyhpg.supabase.co/functions/v1/gloria",{
@@ -4602,7 +4521,7 @@ function DocRequests({user}){
 
   return(
     <div className="fade-in" style={{display:"flex",gap:20,alignItems:"flex-start"}}>
-      {/* Lista richieste */}
+      {}
       <div style={{flex:sel?0:1,minWidth:sel?"260px":"100%",maxWidth:sel?"320px":"100%",transition:"all .3s"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
           <SecTitle title={"Richieste ("+reqs.length+")"} sub="In attesa di risposta"/>
@@ -4648,10 +4567,10 @@ function DocRequests({user}){
         )}
       </div>
 
-      {/* Pannello dettaglio */}
+      {}
       {sel&&(
         <div className="fade-in" style={{flex:1,background:"var(--surface)",borderRadius:"var(--radius-lg)",border:"1px solid var(--border)",padding:"24px",minWidth:0}}>
-          {/* Header */}
+          {}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
             <div>
               <p style={{fontSize:11,color:"var(--text3)",marginBottom:4,fontWeight:600,letterSpacing:1}}>RICHIESTA PRENOTAZIONE</p>
@@ -4664,7 +4583,7 @@ function DocRequests({user}){
             <button onClick={closeDetail} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:"var(--text3)",lineHeight:1}}>✕</button>
           </div>
 
-          {/* Info appuntamento */}
+          {}
           {(function(){
             var isCounter=sel.notes&&sel.notes.startsWith("Controproposta paziente:");
             var counterMatch=isCounter?sel.notes.match(/Controproposta paziente: (\S+) alle (\S+)/):null;
@@ -4681,13 +4600,13 @@ function DocRequests({user}){
             );
           })()}
 
-          {/* Rischio slot */}
+          {}
           <div style={{marginBottom:4}}>
             <p style={{fontSize:11,color:"var(--text3)",fontWeight:600,marginBottom:8,letterSpacing:1}}>RISCHIO SLOT</p>
             <SlotRiskPanel appointment={sel} doctorId={user.id} patientId={sel.patient_id} patientName={sel.patient&&sel.patient.name?sel.patient.name:"Paziente"}/>
           </div>
 
-          {/* Anamnesi */}
+          {}
           <div style={{marginBottom:20}}>
             <p style={{fontSize:11,color:"var(--text3)",fontWeight:600,marginBottom:10,letterSpacing:1}}>ANAMNESI</p>
             {anamLoad?(
@@ -4709,7 +4628,7 @@ function DocRequests({user}){
             )}
           </div>
 
-          {/* Azioni */}
+          {}
           {mode===null&&(
             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
               {sel.notes&&sel.notes.startsWith("Controproposta paziente:")?(
@@ -4728,7 +4647,7 @@ function DocRequests({user}){
             </div>
           )}
 
-          {/* Form suggerisci data */}
+          {}
           {mode==="suggest"&&(
             <div className="fade-in" style={{background:"var(--bg2)",borderRadius:"var(--radius)",padding:"16px",border:"1px solid rgba(200,169,110,0.2)"}}>
               <p style={{fontSize:12,fontWeight:700,color:"var(--gold)",marginBottom:12}}>Suggerisci un nuovo orario</p>
@@ -4758,7 +4677,6 @@ function DocRequests({user}){
     </div>
   );
 }
-
 
 function DocChat(){
   return(
@@ -4897,7 +4815,7 @@ function ImageUploader({userId,field,value,label,hint,aspect,onUploaded}){
     <div>
       <label className="label">{label}</label>
       <div style={{display:"flex",alignItems:"flex-start",gap:12,marginTop:4}}>
-        {/* Preview */}
+        {}
         {value?(
           <div style={{position:"relative",flexShrink:0}}>
             <img src={value} alt={label} style={{width:isProfile?64:96,height:isProfile?64:54,borderRadius:isProfile?"50%":"var(--radius)",objectFit:"cover",border:"2px solid var(--border)"}}/>
@@ -4908,7 +4826,7 @@ function ImageUploader({userId,field,value,label,hint,aspect,onUploaded}){
             <span style={{fontSize:isProfile?22:18}}>{isProfile?"👤":"🖼"}</span>
           </div>
         )}
-        {/* Drop zone */}
+        {}
         <div
           onDragOver={function(e){e.preventDefault();setDrag(true);}}
           onDragLeave={function(){setDrag(false);}}
@@ -4924,107 +4842,7 @@ function ImageUploader({userId,field,value,label,hint,aspect,onUploaded}){
             </>
           )}
         </div>
-        <input ref={inputRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleChange}/>
-      </div>
-      {error&&<p style={{fontSize:11,color:"#c45535",marginTop:4}}>{error}</p>}
-    </div>
-  );
-}
-
-
-function DocProfile({user}){
-  var _edState=useState(false);var ed=_edState[0];var setEd=_edState[1];
-  var _activeTabState=useState("info");var activeTab=_activeTabState[0];var setActiveTab=_activeTabState[1];
-  var _lightboxState=useState(null);var lightbox=_lightboxState[0];var setLightbox=_lightboxState[1];
-  var _savingState=useState(false);var saving=_savingState[0];var setSaving=_savingState[1];
-  var _saveMsgState=useState("");var saveMsg=_saveMsgState[0];var setSaveMsg=_saveMsgState[1];
-  var _fInit={name:user.name,spec:"",city:"",bio:"",phone:"",price:"100",macroAreas:[],services:[],photo_url:"",cover_url:""};var _fState=useState(_fInit);var f=_fState[0];var setF=_fState[1];
-  var _portfolioState=useState([]);var portfolioItems=_portfolioState[0];var setPortfolioItems=_portfolioState[1];
-  var _portLoadState=useState(true);var portLoad=_portLoadState[0];var setPortLoad=_portLoadState[1];
-  var _portLightboxState=useState(null);var portLightbox=_portLightboxState[0];var setPortLightbox=_portLightboxState[1];
-  const up=function(k){return function(e){setF(function(p){var n=Object.assign({},p);n[k]=e.target.value;return n;});};};
-
-  // Carica profilo dal DB
-  useEffect(function(){
-    if(!user||!user.id) return;
-    var load=async function(){
-      var dp=await sb.from("doctor_profiles").select("*").eq("id",user.id).single();
-      var pr=await sb.from("profiles").select("*").eq("id",user.id).single();
-      var portRes=await sb.from("portfolio").select("*").eq("doctor_id",user.id).order("created_at",{ascending:false});
-      if(!portRes.error&&portRes.data){setPortfolioItems(portRes.data);}
-      setPortLoad(false);
-      if(dp.data&&pr.data){
-        setF({
-          name:pr.data.name||user.name,
-          spec:dp.data.specialty||"",
-          city:pr.data.city||"",
-          bio:dp.data.bio||"",
-          phone:pr.data.phone||"",
-          price:String(dp.data.price||100),
-          macroAreas:[],
-          services:dp.data.services||[],
-          photo_url:dp.data.photo_url||"",
-          cover_url:dp.data.cover_url||"",
-        });
-      }
-    };
-    load();
-  },[user]);
-
-  // Salva profilo nel DB
-  var handleSave=useCallback(async function(){
-    if(!ed){setEd(true);return;}
-    setSaving(true);setSaveMsg("");
-    var r1=await sb.from("profiles").update({name:f.name,phone:f.phone,city:f.city}).eq("id",user.id);
-    var r2=await sb.from("doctor_profiles").update({specialty:f.spec,bio:f.bio,price:parseInt(f.price)||100,services:f.services,photo_url:f.photo_url||null,cover_url:f.cover_url||null}).eq("id",user.id);
-    setSaving(false);
-    if(r1.error||r2.error){setSaveMsg("Errore nel salvataggio");}
-    else{setSaveMsg("Salvato!");setEd(false);setTimeout(function(){setSaveMsg("");},2000);}
-  },[ed,f,user]);
-
-  const tabs=[{id:"info",label:"Dati & Bio"},{id:"specialties",label:"Specializzazioni"},{id:"portfolio",label:"Portfolio ("+portfolioItems.length+")"},{id:"preview",label:"Anteprima"}];
-  return(
-    <div className="fade-in">
-      {lightbox&&(
-        <div onClick={()=>setLightbox(null)} style={{position:"fixed",inset:0,background:"rgba(26,24,20,0.88)",zIndex:300,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}}>
-          <img src={lightbox.src} alt={lightbox.label} style={{maxWidth:"88vw",maxHeight:"80vh",borderRadius:"var(--radius-lg)",objectFit:"contain"}}/>
-          <p style={{color:"var(--text2)",fontSize:13,marginTop:14}}>{lightbox.label}</p>
-          <button onClick={()=>setLightbox(null)} style={{position:"absolute",top:20,right:24,background:"none",border:"none",color:"#fff",fontSize:28,cursor:"pointer"}}>✕</button>
-        </div>
-      )}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"1.25rem"}}>
-        <SecTitle title="Profilo Pubblico" sub="Come appari ai pazienti sulla piattaforma"/>
-        <button onClick={handleSave} style={{padding:"8px 18px",borderRadius:"var(--radius)",background:ed?"var(--gold)":"transparent",border:"1px solid "+(ed?"transparent":"var(--border2)"),color:ed?"#fff":"var(--text2)",fontSize:12,fontWeight:600}}>{saving?"Salvataggio...":ed?"✓ Salva modifiche":"✎ Modifica"}{saveMsg&&<span style={{marginLeft:8,fontSize:11,color:"var(--teal)"}}>{saveMsg}</span>}</button>
-      </div>
-      <div style={{display:"flex",gap:14,alignItems:"center",marginBottom:"1.25rem",padding:"1rem 1.25rem",background:"var(--surface)",borderRadius:"var(--radius-lg)",border:"1px solid var(--border)"}}>
-        <Av ini="EM" sz={52} col="#c8a96e"/>
-        <div style={{flex:1}}>
-          <p style={{fontSize:15,fontWeight:700,marginBottom:2}}>{f.name}</p>
-          <p style={{fontSize:12,color:"var(--text2)",marginBottom:6}}>{f.spec+" · "+f.city}</p>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            <span className="badge badge-green">✓ Verificato</span>
-            <span className="badge badge-gold">✦ Pro</span>
-            {f.macroAreas.map(a=><span key={a} className="badge" style={{background:TAXONOMY[a].color+"18",color:TAXONOMY[a].color,border:"1px solid "+TAXONOMY[a].color+"40"}}>{TAXONOMY[a].icon+" "+a}</span>)}
-          </div>
-        </div>
-        <div style={{display:"flex",gap:20}}>
-          <div style={{textAlign:"center"}}><p style={{fontSize:22,fontWeight:700,color:"var(--gold)",fontFamily:"Playfair Display,serif"}}>{f.services.length}</p><p style={{fontSize:9,color:"var(--text3)"}}>trattamenti</p></div>
-          <div style={{textAlign:"center"}}><p style={{fontSize:22,fontWeight:700,color:"var(--teal)",fontFamily:"Playfair Display,serif"}}>{portfolioItems.length}</p><p style={{fontSize:9,color:"var(--text3)"}}>casi portfolio</p></div>
-        </div>
-      </div>
-      <div style={{display:"flex",gap:4,marginBottom:"1.25rem",background:"var(--surface)",borderRadius:"var(--radius-lg)",padding:4,border:"1px solid var(--border)"}}>
-        {tabs.map(t=>(
-          <button key={t.id} onClick={()=>setActiveTab(t.id)}
-            style={{flex:1,padding:"8px",borderRadius:"var(--radius)",border:"none",background:activeTab===t.id?"var(--bg)":"transparent",color:activeTab===t.id?"var(--text)":"var(--text3)",fontSize:12,fontWeight:activeTab===t.id?600:400,transition:"all .15s",boxShadow:activeTab===t.id?"0 1px 4px rgba(0,0,0,0.2)":"none"}}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-      {activeTab==="info"&&(
-        <Card>
-          <div style={{display:"flex",flexDirection:"column",gap:14}}>
-
-            {/* Foto profilo + copertina */}
+        <input ref={inputRef} type="file" accept="image}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
               <ImageUploader
                 userId={user.id} field="photo" value={f.photo_url}
@@ -5130,7 +4948,7 @@ function DocProfile({user}){
               </div>
             </div>
           )}
-          {/* Lightbox portfolio */}
+          {}
           {portLightbox&&(
             <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}} onClick={function(){setPortLightbox(null);}}>
               <div style={{position:"relative"}}>
@@ -5251,7 +5069,6 @@ function AddressAutocomplete({value,city,onChange,onSelect}){
   );
 }
 
-
 function DocSedi({user}){
   var _locationsState=useState([]);var locations=_locationsState[0];var setLocations=_locationsState[1];
   var _availabilityState=useState([]);var availability=_availabilityState[0];var setAvailability=_availabilityState[1];
@@ -5278,7 +5095,7 @@ function DocSedi({user}){
   var addLocation=useCallback(async function(){
     if(!newLoc.name||!newLoc.city){return;}
     setSaving(true);
-    // Geocoding automatico se non ci sono già coordinate
+
     var lat=newLoc.lat||null;
     var lon=newLoc.lon||null;
     if(!lat&&newLoc.city){
@@ -5318,7 +5135,7 @@ function DocSedi({user}){
 
   var toggleDay=async function(locationId,dayIndex,currentlyActive){
     if(currentlyActive){
-      // Rimuovi slot per questo giorno
+
       await sb.from("doctor_availability")
         .delete()
         .eq("doctor_id",user.id)
@@ -5330,7 +5147,7 @@ function DocSedi({user}){
         });
       });
     }else{
-      // Aggiungi slot default 9-18
+
       var res=await sb.from("doctor_availability").insert({
         doctor_id:user.id,
         location_id:locationId||null,
@@ -5369,7 +5186,7 @@ function DocSedi({user}){
         <button onClick={function(){setShowAddLoc(true);}} style={{padding:"8px 18px",borderRadius:"var(--radius)",background:"var(--gold)",border:"none",color:"#fff",fontSize:12,fontWeight:700}}>+ Aggiungi sede</button>
       </div>
 
-      {/* Modale aggiungi sede */}
+      {}
       {showAddLoc&&(
         <Card style={{marginBottom:"1.5rem",border:"1px solid var(--gold)",background:"var(--gold-light)"}}>
           <p style={{fontSize:12,fontWeight:700,color:"var(--gold)",marginBottom:"1rem"}}>✦ Nuova sede</p>
@@ -5402,7 +5219,7 @@ function DocSedi({user}){
         </Card>
       )}
 
-      {/* Calendario globale */}
+      {}
       <Card style={{marginBottom:"1.5rem"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:"1rem"}}>
           <div style={{width:36,height:36,borderRadius:"50%",background:"var(--gold-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>🌍</div>
@@ -5440,7 +5257,7 @@ function DocSedi({user}){
         </div>
       </Card>
 
-      {/* Lista sedi */}
+      {}
       {locations.length===0?(
         <Card style={{textAlign:"center",padding:"2.5rem"}}>
           <p style={{fontSize:24,marginBottom:8}}>📍</p>
@@ -5667,7 +5484,6 @@ function DocChatThreads({user}){
   );
 }
 
-
 function DocGloriaAI({user}){
   var ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRtanJleml4bGJhcnJ5YWl5aHBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4Mjg5MTYsImV4cCI6MjA5NDQwNDkxNn0.HRQZmod5tXe97GXABDyL8QB_YGL6Tf3nccLpbLblWiE";
   var _msgsState=useState([{role:"assistant",content:"Ciao! Sono Gloria, il tuo assistente AI personale.\n\nPosso aiutarti con il tuo calendario, supportarti clinicamente su casi e trattamenti, o gestire le chat con i pazienti. Cosa ti serve?"}]);
@@ -5753,7 +5569,7 @@ function DocGloriaAI({user}){
 
   return(
     <div style={{height:"calc(100vh - 52px - 3.5rem)",display:"flex",flexDirection:"column",background:"#1a1814",borderRadius:"var(--radius-lg)",overflow:"hidden",border:"1px solid rgba(200,169,110,0.15)"}}>
-      {/* Header */}
+      {}
       <div style={{padding:"14px 18px",borderBottom:"1px solid rgba(200,169,110,0.12)",display:"flex",alignItems:"center",gap:10,flexShrink:0,background:"rgba(200,169,110,0.05)"}}>
         <div style={{width:34,height:34,borderRadius:"50%",background:"linear-gradient(135deg,#c8a96e,#a07c45)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:"#fff",boxShadow:"0 0 12px rgba(200,169,110,0.3)"}}>G</div>
         <div style={{flex:1}}>
@@ -5771,7 +5587,7 @@ function DocGloriaAI({user}){
         )}
       </div>
 
-      {/* Chat */}
+      {}
       <div ref={chatRef} style={{flex:1,overflowY:"auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}}>
         {msgs.map(function(m,i){
           var isG=m.role==="assistant";
@@ -5799,7 +5615,7 @@ function DocGloriaAI({user}){
         )}
       </div>
 
-      {/* Suggestions */}
+      {}
       {msgs.length<=1&&!loading&&(
         <div style={{padding:"0 14px 8px",display:"flex",gap:6,flexWrap:"wrap",flexShrink:0}}>
           {SUGGESTIONS.map(function(s,i){return(
@@ -5813,7 +5629,7 @@ function DocGloriaAI({user}){
         </div>
       )}
 
-      {/* Input */}
+      {}
       <div style={{padding:"12px 14px",borderTop:"1px solid rgba(200,169,110,0.1)",display:"flex",gap:8,background:"rgba(200,169,110,0.04)",flexShrink:0}}>
         <input ref={inputRef} value={input} onChange={function(e){setInput(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")send();}}
           placeholder="Chiedimi qualsiasi cosa..."
@@ -5825,8 +5641,6 @@ function DocGloriaAI({user}){
     </div>
   );
 }
-
-
 
 function DocAnalytics(){
   const months=["Gen","Feb","Mar","Apr","Mag"];
@@ -5953,7 +5767,6 @@ function PatDashboard({user,nav,uiState,onUiUpdate,chatTarget,onChatOpen}){
         </div>
       )}
 
-
       {bookDoc&&<BookModal doc={bookDoc} onClose={()=>setBookDoc(null)} user={user}/>}
     </div>
   );
@@ -5963,7 +5776,6 @@ function ChatSystem({user,initialDoctorId,initialDoctorName}){
   var ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRtanJleml4bGJhcnJ5YWl5aHBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4Mjg5MTYsImV4cCI6MjA5NDQwNDkxNn0.HRQZmod5tXe97GXABDyL8QB_YGL6Tf3nccLpbLblWiE";
   var isDoctor=user.type==="doctor";
 
-  // State
   var _threadsState=useState([]);var threads=_threadsState[0];var setThreads=_threadsState[1];
   var _selState=useState(null);var sel=_selState[0];var setSel=_selState[1];
   var _msgsState=useState([]);var msgs=_msgsState[0];var setMsgs=_msgsState[1];
@@ -5974,12 +5786,10 @@ function ChatSystem({user,initialDoctorId,initialDoctorName}){
   var inputRef=useRef(null);
   var docSediRef=useRef([]);
 
-  // Scroll to bottom
   useEffect(function(){
     if(chatRef.current) chatRef.current.scrollTop=chatRef.current.scrollHeight;
   },[msgs]);
 
-  // Load threads
   var loadThreads=useCallback(async function(){
     if(!user||!user.id) return;
     var q=isDoctor
@@ -5991,7 +5801,6 @@ function ChatSystem({user,initialDoctorId,initialDoctorName}){
 
   useEffect(function(){loadThreads();},[loadThreads]);
 
-  // Auto-open if initialDoctorId passed (from booking flow)
   useEffect(function(){
     if(initialDoctorId&&!initDone&&user){
       setInitDone(true);
@@ -5999,7 +5808,6 @@ function ChatSystem({user,initialDoctorId,initialDoctorName}){
     }
   },[initialDoctorId,initDone,user]);
 
-  // Open or create thread
   var openOrCreateThread=async function(otherId,otherName){
     var q=isDoctor
       ? sb.from("chat_threads").select("*").eq("doctor_id",user.id).eq("patient_id",otherId)
@@ -6007,7 +5815,7 @@ function ChatSystem({user,initialDoctorId,initialDoctorName}){
     var res=await q.neq("status","archived").limit(1);
     var t=res.data&&res.data.length>0?res.data[0]:null;
     if(!t&&!isDoctor){
-      // Solo il paziente può creare il thread
+
       var ins=await sb.from("chat_threads").insert({
         patient_id:user.id,
         doctor_id:otherId,
@@ -6017,14 +5825,14 @@ function ChatSystem({user,initialDoctorId,initialDoctorName}){
       t=ins.data&&ins.data.length>0?ins.data[0]:null;
     }
     if(!t) return;
-    // Attach other party name
+
     t._otherName=otherName;
     await openThread(t);
   };
 
   var openThread=async function(t){
     setSel(t);
-    // Carica sedi del medico (solo se paziente)
+
     if(!isDoctor){
       var doctorId=t.doctor_id;
       docSediRef.current=[];
@@ -6034,7 +5842,7 @@ function ChatSystem({user,initialDoctorId,initialDoctorName}){
     }
     var res=await sb.from("chat_messages").select("*").eq("thread_id",t.id).order("created_at",{ascending:true});
     var threadMsgs=(!res.error&&res.data)?res.data:[];
-    // Welcome message se vuoto e paziente che apre
+
     if(threadMsgs.length===0&&!isDoctor){
       var w={thread_id:t.id,sender_type:"gloria",content:"Ciao "+user.name+"! Sono Gloria, l'assistente dello studio. Come posso aiutarti?"};
       var wRes=await sb.from("chat_messages").insert(w).select();
@@ -6045,7 +5853,6 @@ function ChatSystem({user,initialDoctorId,initialDoctorName}){
     setTimeout(function(){if(inputRef.current)inputRef.current.focus();},100);
   };
 
-  // Send message
   var send=useCallback(async function(){
     var t=input.trim();
     if(!t||!sel) return;
@@ -6057,7 +5864,6 @@ function ChatSystem({user,initialDoctorId,initialDoctorName}){
     setMsgs(function(prev){return [...prev,saved];});
     await sb.from("chat_threads").update({updated_at:new Date().toISOString()}).eq("id",sel.id);
 
-    // Gloria risponde solo se è il paziente che scrive
     if(!isDoctor){
       setLoading(true);
       try{
@@ -6093,13 +5899,11 @@ function ChatSystem({user,initialDoctorId,initialDoctorName}){
     if(sel&&sel.id===id){setSel(null);setMsgs([]);}
   };
 
-  // Get display name for thread
   var getOtherName=function(t){
     if(isDoctor) return t.patient?t.patient.name:"Paziente";
     return t.doctor?t.doctor.name:"Medico";
   };
 
-  // Thread list view
   if(!sel) return(
     <div style={{height:"100%",display:"flex",flexDirection:"column"}}>
       <div style={{padding:"0 0 1rem"}}>
@@ -6148,13 +5952,12 @@ function ChatSystem({user,initialDoctorId,initialDoctorName}){
     </div>
   );
 
-  // Chat view
   var otherName=sel._otherName||getOtherName(sel);
   var ini=otherName.split(" ").map(function(n){return n[0];}).join("").slice(0,2).toUpperCase();
 
   return(
     <div style={{height:"calc(100vh - 52px - 3.5rem)",display:"flex",flexDirection:"column",background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden"}}>
-      {/* Header */}
+      {}
       <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10,background:"var(--bg3)",flexShrink:0}}>
         <button onClick={function(){setSel(null);setMsgs([]);loadThreads();}} style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:20,lineHeight:1,padding:"0 4px"}}>←</button>
         <Av ini={ini} sz={36} col="#c8a96e"/>
@@ -6170,7 +5973,7 @@ function ChatSystem({user,initialDoctorId,initialDoctorName}){
         )}
       </div>
 
-      {/* Messages */}
+      {}
       <div ref={chatRef} style={{flex:1,overflowY:"auto",padding:"16px",display:"flex",flexDirection:"column",gap:10,background:"var(--bg)"}}>
         {msgs.map(function(m,i){
           var isMe=(isDoctor&&m.sender_type==="doctor")||(!isDoctor&&m.sender_type==="patient");
@@ -6202,7 +6005,7 @@ function ChatSystem({user,initialDoctorId,initialDoctorName}){
         )}
       </div>
 
-      {/* Input */}
+      {}
       <div style={{padding:"10px 14px",borderTop:"1px solid var(--border)",display:"flex",gap:8,alignItems:"center",background:"var(--surface)",flexShrink:0}}>
         <input ref={inputRef} value={input}
           onChange={function(e){setInput(e.target.value);}}
@@ -6234,7 +6037,7 @@ function PatChat({user}){
 
   useEffect(function(){
     if(!user||!user.id) return;
-    // Carica medici con cui il paziente ha prenotazioni
+
     sb.from("appointments").select("doctor_id").eq("patient_id",user.id).neq("status","cancelled").then(async function(res){
       if(!res.error&&res.data){
         var seen={};
@@ -6254,12 +6057,12 @@ function PatChat({user}){
     setSelDoc(doc);
     setDocSedi([]);docSediRef.current=[];
     console.log("[Gloria debug] openChat doc:", JSON.stringify(doc));
-    // Carica sedi operative del medico
+
     sb.from("doctor_locations").select("city,address").eq("doctor_id",doc.id).then(function(locRes){
       if(!locRes.error&&locRes.data){setDocSedi(locRes.data);docSediRef.current=locRes.data;console.log("[Gloria debug] sedi caricate:",JSON.stringify(locRes.data));}else{console.log("[Gloria debug] sedi error:",locRes.error,"data:",locRes.data);}
     });
     try{
-      // Cerca thread esistente o creane uno nuovo
+
       var res=await sb.from("chat_threads").select("*").eq("patient_id",user.id).eq("doctor_id",doc.id).eq("status","open").limit(1);
       var t=res.data&&res.data.length>0?res.data[0]:null;
       if(!t){
@@ -6268,12 +6071,12 @@ function PatChat({user}){
         t=ins.data&&ins.data.length>0?ins.data[0]:null;
       }
     setThread(t);
-    // Carica messaggi
+
     if(t){
       var mRes=await sb.from("chat_messages").select("*").eq("thread_id",t.id).order("created_at",{ascending:true});
       if(!mRes.error&&mRes.data) setMsgs(mRes.data);
       else setMsgs([]);
-      // Messaggio di benvenuto se vuoto
+
       if(!mRes.data||mRes.data.length===0){
         var welcome={thread_id:t.id,sender_type:"gloria",content:"Ciao "+user.name+"! Sono Gloria, l'assistente dello studio del "+doc.name+". Come posso aiutarti?"};
         await sb.from("chat_messages").insert(welcome);
@@ -6294,12 +6097,12 @@ function PatChat({user}){
     var t2=input.trim();
     if(!t2||loading||!thread) return;
     setInput("");
-    // Salva messaggio paziente
+
     var patMsg={thread_id:thread.id,sender_type:"patient",sender_id:user.id,content:t2};
     await sb.from("chat_messages").insert(patMsg);
     setMsgs(function(prev){return [...prev,patMsg];});
     setLoading(true);
-    // Gloria risponde
+
     try{
       var history=[...msgs,patMsg].filter(function(m){return m.sender_type!=="doctor";}).map(function(m){return {role:m.sender_type==="gloria"?"assistant":"user",content:m.content};});
       var r=await fetch("https://tmjrezixlbarryaiyhpg.supabase.co/functions/v1/gloria",{
@@ -6312,7 +6115,7 @@ function PatChat({user}){
         var gloriaMsg={thread_id:thread.id,sender_type:"gloria",content:d.content};
         await sb.from("chat_messages").insert(gloriaMsg);
         setMsgs(function(prev){return [...prev,gloriaMsg];});
-        // Controlla se Gloria chiede contatti
+
         if(d.content.toLowerCase().includes("telefono")||d.content.toLowerCase().includes("whatsapp")) setShowContact(true);
       }
     }catch(e){}
@@ -6324,7 +6127,7 @@ function PatChat({user}){
     await sb.from("chat_threads").update({has_contacts:true,patient_phone:phone,patient_whatsapp:wa}).eq("id",thread.id);
     setThread(function(t){return Object.assign({},t,{has_contacts:true});});
     setShowContact(false);
-    // Conferma in chat
+
     var confMsg={thread_id:thread.id,sender_type:"gloria",content:"Grazie! Ho trasmesso i tuoi contatti allo studio. Il "+selDoc.name+" ti ricontatterà al più presto."};
     await sb.from("chat_messages").insert(confMsg);
     setMsgs(function(prev){return [...prev,confMsg];});
@@ -6364,7 +6167,7 @@ function PatChat({user}){
 
   return(
     <div className="fade-in" style={{height:"calc(100vh - 52px - 3.5rem)",display:"flex",flexDirection:"column",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden"}}>
-      {/* Header */}
+      {}
       <div style={{padding:"11px 16px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10,background:"var(--surface)",flexShrink:0}}>
         <button onClick={function(){setSelDoc(null);setThread(null);setMsgs([]);}} style={{background:"none",border:"none",color:"var(--text3)",cursor:"pointer",fontSize:18,lineHeight:1}}>←</button>
         <Av ini={selDoc.name.split(" ").map(function(n){return n[0];}).join("").slice(0,2).toUpperCase()} sz={34} col="#c8a96e"/>
@@ -6375,7 +6178,7 @@ function PatChat({user}){
         {thread&&thread.has_contacts&&<span className="badge badge-green">✓ Contatti forniti</span>}
       </div>
 
-      {/* Messaggi */}
+      {}
       <div ref={chatRef} style={{flex:1,overflowY:"auto",padding:"14px",display:"flex",flexDirection:"column",gap:10,background:"var(--bg)"}}>
         {msgs.map(function(m,i){
           var isPatient=m.sender_type==="patient";
@@ -6407,7 +6210,7 @@ function PatChat({user}){
         )}
       </div>
 
-      {/* Form contatti */}
+      {}
       {showContact&&(
         <div className="fade-in" style={{padding:"12px 16px",background:"var(--gold-light)",borderTop:"1px solid rgba(200,169,110,0.2)",flexShrink:0}}>
           <p style={{fontSize:11,fontWeight:700,color:"var(--gold)",marginBottom:8}}>✦ Lascia i tuoi contatti</p>
@@ -6422,7 +6225,7 @@ function PatChat({user}){
         </div>
       )}
 
-      {/* Input */}
+      {}
       <div style={{padding:"10px 12px",borderTop:"1px solid var(--border)",display:"flex",gap:8,background:"var(--surface)",flexShrink:0}}>
         <input value={input} onChange={function(e){setInput(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")send();}}
           placeholder="Scrivi un messaggio..."
@@ -6434,7 +6237,6 @@ function PatChat({user}){
     </div>
   );
 }
-
 
 function PatProfile({user}){
   var _edState=useState(false);var ed=_edState[0];var setEd=_edState[1];
@@ -6482,7 +6284,6 @@ function PatProfile({user}){
     </div>
   );
 }
-
 
 function PatPayments({user}){
   var _paymentsState=useState([]);var payments=_paymentsState[0];var setPayments=_paymentsState[1];
@@ -6557,7 +6358,7 @@ function PatPayments({user}){
         </div>
       )}
 
-      {/* Mock pagamento */}
+      {}
       {mockPay&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={function(){setMockPay(null);}}>
           <div className="fade-in" style={{background:"var(--surface)",borderRadius:"var(--radius-lg)",padding:28,maxWidth:360,width:"100%",border:"1px solid var(--border)",textAlign:"center"}} onClick={function(e){e.stopPropagation();}}>
@@ -6607,7 +6408,7 @@ function PatAppointments({user}){
 
   useEffect(function(){
     fetchAppts();
-    // Polling ogni 30 secondi per aggiornamenti in tempo reale
+
     var interval=setInterval(fetchAppts,30000);
     return function(){clearInterval(interval);};
   },[fetchAppts]);
@@ -6618,14 +6419,14 @@ function PatAppointments({user}){
   };
 
   var acceptReschedule=async function(a){
-    // Accetta la data proposta dal medico
+
     var notes=a.notes||"";
     var match=notes.match(/Proposta medico: (\S+) alle (\S+)/);
     var nd=match?match[1]:a.date;
     var nt=match?match[2]:a.time;
     await sb.from("appointments").update({status:"confirmed",date:nd,time:nt,notes:""}).eq("id",a.id);
     setAppts(function(prev){return prev.map(function(x){return x.id===a.id?Object.assign({},x,{status:"confirmed",date:nd,time:nt,notes:""}):x;});});
-    // Notifica medico via chat
+
     var threadRes=await sb.from("chat_threads").select("id").eq("patient_id",user.id).eq("doctor_id",a.doctor_id).eq("status","open").limit(1).maybeSingle();
     if(threadRes.data){
       await sb.from("chat_messages").insert({thread_id:threadRes.data.id,sender_type:"patient",sender_id:user.id,content:"Ho accettato la nuova data proposta: "+nd+" alle "+nt+"."});
@@ -6654,11 +6455,10 @@ function PatAppointments({user}){
     }
     setReschedModal(null);setNewDate("");setNewTime("");
     setSaving(false);
-    // Ricarica appuntamenti dopo breve delay per aggiornare la vista
+
     setTimeout(fetchAppts, 500);
   };
 
-  // Cerca il nome del medico dall'array DOCTORS tramite supabase_id
   var getDoctorName=function(doctorId){
     var found=DOCTORS.find(function(d){return d.supabase_id===doctorId;});
     return found?found.name:"Medico";
@@ -6683,7 +6483,7 @@ function PatAppointments({user}){
         <SecTitle title="Appuntamenti" sub="I tuoi appuntamenti"/>
         <button onClick={fetchAppts} style={{padding:"6px 14px",borderRadius:"var(--radius)",background:"var(--bg2)",border:"1px solid var(--border)",color:"var(--text3)",fontSize:11,cursor:"pointer"}}>↻ Aggiorna</button>
       </div>
-      {/* Banner avviso proposte in attesa */}
+      {}
       {appts.some(function(a){return a.notes&&a.notes.startsWith("Proposta medico:");})&&(
         <div className="fade-in" style={{marginBottom:16,padding:"12px 16px",borderRadius:"var(--radius)",background:"rgba(200,169,110,0.12)",border:"1px solid rgba(200,169,110,0.4)",display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:18}}>🔄</span>
@@ -6745,7 +6545,7 @@ function PatAppointments({user}){
           </div>
         </div>
       )}
-      {/* Modal controproposta paziente */}
+      {}
       {reschedModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <div className="fade-in" style={{background:"var(--surface)",borderRadius:"var(--radius-lg)",padding:24,maxWidth:380,width:"100%",border:"1px solid var(--border)"}}>
@@ -6794,7 +6594,6 @@ function PatAppointments({user}){
     </div>
   );
 }
-
 
 function PatSaved({onView,onBook}){
   const saved=DOCTORS.filter(d=>[1,2,5].includes(d.id));
@@ -6898,27 +6697,25 @@ function AutoStartAnamnesi({lastApptId,doc,user,selService,selDate,selTime,onClo
 function AnamnesPage({apptId,doc,user,onClose}){
   var ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRtanJleml4bGJhcnJ5YWl5aHBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4Mjg5MTYsImV4cCI6MjA5NDQwNDkxNn0.HRQZmod5tXe97GXABDyL8QB_YGL6Tf3nccLpbLblWiE";
 
-  // Albero dinamico di domande
   var buildScreens=function(answers){
     var screens=[
-      // S0 - Dati anagrafici
+
       {id:"s0",pairs:[
         {id:"eta",text:"Quanti anni hai?",opts:["Meno di 18","18-25","26-35","36-45","46-55","56-65","Oltre 65"]},
         {id:"sesso",text:"Sesso biologico",opts:["Maschio","Femmina","Preferisco non specificare"]},
       ]},
-      // S1 - Motivazione
+
       {id:"s1",pairs:[
         {id:"motivo",text:"Qual è il motivo principale della visita?",opts:["Miglioramento estetico generale","Correzione zona specifica","Trattamento anti-aging","Consiglio professionale","Altro"]},
         {id:"aspettative",text:"Cosa ti aspetti dal trattamento?",opts:["Risultato naturale e discreto","Cambiamento evidente","Mantenere risultati precedenti","Voglio solo capire le opzioni","Altro"]},
       ]},
-      // S2 - Trattamenti precedenti
+
       {id:"s2",pairs:[
         {id:"trattamenti_prec",text:"Hai già fatto trattamenti estetici in passato?",opts:["No, prima volta","Sì — filler o botox","Sì — laser o peeling","Sì — intervento chirurgico","Altro"]},
         {id:"motivo_scelta",text:"Come hai scelto di intraprendere questo percorso?",opts:["Consiglio di amici o familiari","Ricerca online","Consiglio del medico di base","Esperienza personale precedente","Altro"]},
       ]},
     ];
 
-    // S2b - Soddisfazione solo se ha fatto trattamenti
     var prevTratt=answers["trattamenti_prec"];
     if(prevTratt&&prevTratt!=="No, prima volta"){
       screens.push({id:"s2b",pairs:[
@@ -6927,13 +6724,11 @@ function AnamnesPage({apptId,doc,user,onClose}){
       ]});
     }
 
-    // S3 - Malattie (sempre)
     screens.push({id:"s3",pairs:[
       {id:"malattie",text:"Hai condizioni mediche o malattie croniche?",opts:["No, sono in buona salute","Diabete o problemi metabolici","Problemi cardiovascolari","Disturbi autoimmuni o tiroidei","Altro"]},
       {id:"interventi",text:"Hai mai subito interventi chirurgici?",opts:["No","Sì — intervento estetico","Sì — intervento generale","Sì — entrambi","Altro"]},
     ]});
 
-    // S4 - Complicazioni chirurgiche (solo se ha avuto interventi)
     var prevInterventi=answers["interventi"];
     if(prevInterventi&&prevInterventi!=="No"){
       screens.push({id:"s4",pairs:[
@@ -6942,13 +6737,11 @@ function AnamnesPage({apptId,doc,user,onClose}){
       ]});
     }
 
-    // S5 - Farmaci (sempre)
     screens.push({id:"s5",pairs:[
       {id:"farmaci",text:"Stai assumendo farmaci o integratori?",opts:["No","Sì"]},
       {id:"allergie",text:"Hai allergie note?",opts:["No","Sì — allergie a farmaci","Sì — allergie a materiali o lattice","Sì — allergie alimentari rilevanti","Altro"]},
     ]});
 
-    // S6 - Dettaglio farmaci (solo se sì)
     var prendeFarmaci=answers["farmaci"];
     if(prendeFarmaci==="Sì"){
       screens.push({id:"s6",pairs:[
@@ -6957,13 +6750,11 @@ function AnamnesPage({apptId,doc,user,onClose}){
       ]});
     }
 
-    // S7 - Stile di vita (sempre)
     screens.push({id:"s7",pairs:[
       {id:"fumo",text:"Fumi o hai fumato?",opts:["No, non fumo","Sì — meno di 10 sigarette/giorno","Sì — più di 10 sigarette/giorno","Ex fumatore/fumatrice","Altro"]},
       {id:"alcol",text:"Consumi alcolici regolarmente?",opts:["No o raramente","Sì — qualche volta a settimana","Sì — tutti i giorni","Altro"]},
     ]});
 
-    // S8 - Gravidanza (solo se femmina)
     var sesso=answers["sesso"];
     if(!sesso||sesso==="Femmina"){
       screens.push({id:"s8",pairs:[
@@ -7052,7 +6843,7 @@ function AnamnesPage({apptId,doc,user,onClose}){
       });
     });
     var docText=docLines.join(", ");
-    // Salva anamnesi — prima elimina eventuale record esistente, poi inserisce
+
     await sb.from("anamnesi").delete().eq("appointment_id",apptId);
     var anamRes=await sb.from("anamnesi").insert({
       appointment_id:apptId,
@@ -7160,12 +6951,6 @@ function AnamnesPage({apptId,doc,user,onClose}){
   );
 }
 
-
-
-// ─── MOBILE APP ROOT ───────────────────────────────────────────────
-
-// ─── DAILY REMINDER POPUP ─────────────────────────────────────────
-// ─── PATIENT STATS COMPONENT ──────────────────────────────────────
 function PatientStatsCard({patientId,compact,showFull}){
   var _statsState=useState(null);var stats=_statsState[0];var setStats=_statsState[1];
 
@@ -7247,7 +7032,6 @@ function PatientStatsCard({patientId,compact,showFull}){
   );
 }
 
-// ─── PATIENT SUMMARY FOR NEW DOCTOR (on request) ──────────────────
 function PatientSummaryBadge({patientId}){
   var _statsState=useState(null);var stats=_statsState[0];var setStats=_statsState[1];
 
@@ -7292,7 +7076,6 @@ function PatientSummaryBadge({patientId}){
   );
 }
 
-
 function DailyReminderPopup({user,onClose}){
   var TODAY=new Date().toISOString().slice(0,10);
   var HOUR=new Date().getHours();
@@ -7319,7 +7102,7 @@ function DailyReminderPopup({user,onClose}){
 
   useEffect(function(){
     var load=async function(){
-      // Prima carica gli arretrati (passati senza esito)
+
       var pastRes=await sb.from("appointments")
         .select("*, patient:profiles!appointments_patient_id_fkey(id,name)")
         .eq("doctor_id",user.id)
@@ -7328,7 +7111,7 @@ function DailyReminderPopup({user,onClose}){
         .is("visit_outcome",null)
         .order("date",{ascending:false})
         .limit(20);
-      // Poi carica quelli di oggi
+
       var todayRes=await sb.from("appointments")
         .select("*, patient:profiles!appointments_patient_id_fkey(id,name)")
         .eq("doctor_id",user.id)
@@ -7339,7 +7122,7 @@ function DailyReminderPopup({user,onClose}){
       var all=[];
       if(!pastRes.error&&pastRes.data) all=[...pastRes.data];
       if(!todayRes.error&&todayRes.data) all=[...all,...todayRes.data];
-      // Deduplica
+
       var seen={};
       all=all.filter(function(a){if(seen[a.id])return false;seen[a.id]=true;return true;});
       setAppts(all);
@@ -7362,14 +7145,14 @@ function DailyReminderPopup({user,onClose}){
       if(!outcome) continue;
       var isNoShow=outcome==="noshow";
       var isNoShowWarned=outcome==="noshow_warned";
-      // Save to appointments
+
       await sb.from("appointments").update({
         visit_outcome:outcome,
         visit_notes:notes[a.id]||null,
         no_show:isNoShow||isNoShowWarned,
         no_show_warned:isNoShowWarned,
       }).eq("id",a.id);
-      // Save to visit_reviews
+
       await sb.from("visit_reviews").insert({
         appointment_id:a.id,
         doctor_id:user.id,
@@ -7409,7 +7192,7 @@ function DailyReminderPopup({user,onClose}){
     <div style={{position:"fixed",inset:0,background:"rgba(26,24,20,0.6)",backdropFilter:"blur(6px)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div className="scale-in" style={{background:"var(--surface)",borderRadius:"var(--radius-lg)",maxWidth:520,width:"100%",border:"1px solid var(--border)",boxShadow:"0 24px 80px rgba(26,24,20,0.25)",overflow:"hidden"}}>
 
-        {/* Header */}
+        {}
         <div style={{padding:"18px 20px",background:"linear-gradient(135deg,rgba(200,169,110,0.12),rgba(200,169,110,0.04))",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:12}}>
           <div style={{width:40,height:40,borderRadius:"50%",background:"var(--gold)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
             <span style={{fontSize:18,color:"#fff"}}>{IS_EVENING?"🌆":"☀️"}</span>
@@ -7421,7 +7204,7 @@ function DailyReminderPopup({user,onClose}){
           <button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:"var(--text3)"}}>✕</button>
         </div>
 
-        {/* Progress bar */}
+        {}
         {IS_EVENING&&(
           <div style={{height:3,background:"var(--bg2)"}}>
             <div style={{height:"100%",background:"var(--gold)",width:((step)/appts.length*100)+"%",transition:"width .3s"}}/>
@@ -7430,10 +7213,10 @@ function DailyReminderPopup({user,onClose}){
 
         <div style={{padding:"20px"}}>
           {(mode==="evening")?(
-            // EVENING MODE: review each appointment
+
             currentAppt?(
               <div>
-                {/* Patient info */}
+                {}
                 <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px",background:"var(--bg2)",borderRadius:"var(--radius-lg)",marginBottom:18,border:"1px solid var(--border)"}}>
                   <Av ini={(currentAppt.patient?.name||"?").split(" ").map(function(n){return n[0];}).join("").slice(0,2)} sz={40} col="#c8a96e"/>
                   <div style={{flex:1}}>
@@ -7445,7 +7228,7 @@ function DailyReminderPopup({user,onClose}){
 
                 <p style={{fontSize:13,fontWeight:600,marginBottom:12,color:"var(--text)"}}>Come è andata la visita?</p>
 
-                {/* Outcome options */}
+                {}
                 <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
                   {OUTCOMES.map(function(o){
                     var sel=outcomes[currentAppt.id]===o.id;
@@ -7460,7 +7243,7 @@ function DailyReminderPopup({user,onClose}){
                   })}
                 </div>
 
-                {/* Note field for "other" */}
+                {}
                 {outcomes[currentAppt.id]==="other"&&(
                   <textarea value={notes[currentAppt.id]||""} onChange={function(e){setNotes(function(prev){return Object.assign({},prev,{[currentAppt.id]:e.target.value});});}}
                     placeholder="Descrivi cosa è successo..."
@@ -7468,7 +7251,7 @@ function DailyReminderPopup({user,onClose}){
                     rows={3}/>
                 )}
 
-                {/* Navigation */}
+                {}
                 <div style={{display:"flex",gap:10}}>
                   {step>0&&(
                     <button onClick={function(){setStep(step-1);}} style={{padding:"10px 16px",borderRadius:"var(--radius)",background:"var(--bg2)",border:"1px solid var(--border)",color:"var(--text2)",fontSize:12,cursor:"pointer"}}>← Indietro</button>
@@ -7484,7 +7267,7 @@ function DailyReminderPopup({user,onClose}){
               </div>
             ):null
           ):(
-            // MORNING/DEFAULT MODE: show unreviewed + today
+
             <div>
               {appts.filter(function(a){return a.date<TODAY;}).length>0&&(
                 <div style={{padding:"10px 12px",background:"rgba(196,85,53,0.08)",borderRadius:"var(--radius)",border:"1px solid rgba(196,85,53,0.2)",marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
@@ -7527,7 +7310,6 @@ function DailyReminderPopup({user,onClose}){
   );
 }
 
-
 function NoShowBadge({patientId,inline}){
   var _countState=useState(0);var count=_countState[0];var setCount=_countState[1];
   useEffect(function(){
@@ -7545,7 +7327,6 @@ function NoShowBadge({patientId,inline}){
     </div>
   );
 }
-
 
 function AdminDashboard({user,onLogout}){
   var _secState=useState("overview");var sec=_secState[0];var setSec=_secState[1];
@@ -7856,7 +7637,7 @@ function AdminStats(){
       <SecTitle title="Statistiche" sub="Analisi delle prenotazioni"/>
       {loading?<p style={{color:"var(--text3)",fontSize:12}}>Caricamento...</p>:(
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-          {/* Top servizi */}
+          {}
           <Card>
             <p style={{fontSize:13,fontWeight:700,marginBottom:16}}>Top servizi prenotati</p>
             {topServices.length===0?<p style={{color:"var(--text3)",fontSize:12}}>Nessun dato</p>:(
@@ -7875,7 +7656,7 @@ function AdminStats(){
               </div>
             )}
           </Card>
-          {/* Stato prenotazioni */}
+          {}
           <Card>
             <p style={{fontSize:13,fontWeight:700,marginBottom:16}}>Stato prenotazioni</p>
             {Object.entries(data.byStatus).map(function(s){
@@ -7891,7 +7672,7 @@ function AdminStats(){
               );
             })}
           </Card>
-          {/* Andamento mensile */}
+          {}
           <Card style={{gridColumn:"1/-1"}}>
             <p style={{fontSize:13,fontWeight:700,marginBottom:16}}>Prenotazioni per mese</p>
             {months.length===0?<p style={{color:"var(--text3)",fontSize:12}}>Nessun dato</p>:(
@@ -7912,12 +7693,10 @@ function AdminStats(){
   );
 }
 
-
 function App(){
   var _pageState=useState("home");var page=_pageState[0];var setPage=_pageState[1];
   var _docPageState=useState(null);var docPage=_docPageState[0];var setDocPage=_docPageState[1];
 
-  // Hash-based routing for doctor pages
   useEffect(function(){
     var handleHash=function(){
       var hash=window.location.hash;
@@ -7951,12 +7730,10 @@ function App(){
   var _authCheckedState=useState(false);var authChecked=_authCheckedState[0];var setAuthChecked=_authCheckedState[1];
   var _anamnesState=useState(null);var anamnesData=_anamnesState[0];var setAnamnesData=_anamnesState[1];
 
-  // Handler globale per aprire la pagina anamnesi
   window._startAnamnesi=function(apptId,doc,user){
     setAnamnesData({apptId:apptId,doc:doc,user:user});
   };
 
-  // Handler globale per aprire chat
   var _chatTargetState=useState(null);var chatTarget=_chatTargetState[0];var setChatTarget=_chatTargetState[1];
   window._openChat=function(doctorId,doctorName){
     setChatTarget({doctorId:doctorId,doctorName:doctorName});
@@ -7965,7 +7742,6 @@ function App(){
   window._currentUser=user;
   const updUi=useCallback(function(u){setUi(function(p){var n={};Object.keys(p).forEach(function(k){n[k]=p[k];});Object.keys(u).forEach(function(k){n[k]=u[k];});return n;});},[]);
 
-  // Controlla sessione esistente al caricamento
   useEffect(function(){
     sb.auth.getSession().then(async function(res){
       if(res.data.session){
@@ -7988,11 +7764,8 @@ function App(){
 
   if(!authChecked) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"var(--bg)"}}><div style={{textAlign:"center"}}><div style={{fontSize:28,marginBottom:12}}>✦</div><p style={{color:"var(--text3)",fontSize:12}}>Caricamento...</p></div></div>;
 
-
-  // Anamnesi ha sempre priorità massima
   if(anamnesData) return <AnamnesPage apptId={anamnesData.apptId} doc={anamnesData.doc} user={anamnesData.user} onClose={function(){setAnamnesData(null);}}/>;
 
-  // Doctor page route (hash-based)
   if(docPage){
     return <DoctorPage
       docId={window._currentDocId||docPage}
@@ -8018,7 +7791,6 @@ function App(){
   }
   return null;
 }
-
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
