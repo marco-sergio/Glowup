@@ -23,7 +23,7 @@ body{font-family:'Syne',sans-serif;background:#f4f1ec;color:#1a1814}
   --border:rgba(26,24,20,0.10);--border2:rgba(26,24,20,0.18);
   --text:#1a1814;--text2:#4a4540;--text3:#8c8880;
   --teal:#1a9e68;--teal-dim:rgba(26,158,104,0.10);--coral:#c45535;--coral-dim:rgba(196,85,53,0.10);--blue:#3d6fd4;--blue-dim:rgba(61,111,212,0.10);
-  --radius:10px;--radius-lg:16px;--chat-w:360px;
+  --radius:10px;--radius-lg:16px;--chat-w:400px;
 }
 button{cursor:pointer;font-family:'Syne',sans-serif}
 input,textarea,select{font-family:'Syne',sans-serif;outline:none}
@@ -460,7 +460,7 @@ style={{flex:1,background:"transparent",border:"none",fontSize:12,color:"var(--t
 </div>
 );
 }
-function Gloria({onUpdate,ctx="marketplace",doctors}){
+function Gloria({onUpdate,ctx="marketplace",doctors,onBook}){
 const MSG0={
 marketplace:"Ciao! Sono Gloria ✦\nSono qui per aiutarti a trovare il professionista giusto. Di cosa hai bisogno?",
 doctor:"Ciao! Sono Gloria ✦\nCome posso supportarti nella gestione del tuo studio?",
@@ -479,6 +479,7 @@ var _intentState=useState("");var intent=_intentState[0];var setIntent=_intentSt
 var _cityState=useState("");var city=_cityState[0];var setCity=_cityState[1];
 var _budgetState=useState("");var budget=_budgetState[0];var setBudget=_budgetState[1];
 var _realDoctorsState=useState([]);var realDoctors=_realDoctorsState[0];var setRealDoctors=_realDoctorsState[1];
+var _focusDocState=useState(null);var focusDoc=_focusDocState[0];var setFocusDoc=_focusDocState[1];
 useEffect(function(){
 if(ctx!=="marketplace") return;
 var loadDocs=async function(){
@@ -579,6 +580,7 @@ var handler=function(ev){
 if(proactTimer.current) clearTimeout(proactTimer.current);
 if(ev.type==="view_card"){
 var doc=ev.data.doc;
+setFocusDoc(doc);
 if(!viewedDocs.current.find(function(d){return d.id===doc.id;}))
 viewedDocs.current=[...viewedDocs.current,doc];
 var tagCount={};
@@ -591,11 +593,21 @@ proactTimer.current=setTimeout(function(){
 var tagLabels={"viso":"trattamenti viso","non-invasivo":"medicina estetica non invasiva","chirurgia":"chirurgia estetica","corpo":"chirurgia del corpo","pelle":"dermatologia estetica","seno":"chirurgia del seno"};
 var lbl=tagLabels[topTag]||topTag;
 pushProactive(
-"Sto notando che esplori molto profili di "+lbl+" ✦\nVuoi che affini la selezione? Dimmi la tua citta e il budget e costruisco una lista personalizzata.",
-["Si, aiutami a scegliere","Qual e il migliore?","Dimmi i prezzi"],
+"Sto notando che esplori molto profili di "+lbl+" ✦\nVuoi che affini la selezione? Dimmi la tua citta e il budget e costruisco una lista personalizzata, pronta per la prenotazione.",
+["Sì, aiutami a scegliere","Qual è il migliore?","Prenota per me il top match"],
 {}
 );
-},3000);
+},1800);
+}
+if(viewedDocs.current.length>=3&&!proactTimer.current){
+proactTimer.current=setTimeout(function(){
+var top=viewedDocs.current[viewedDocs.current.length-1];
+pushProactive(
+"Hai guardato già "+viewedDocs.current.length+" profili ✦\nSe vuoi evitare di scegliere a caso, posso prenotare direttamente la prima visita con "+top.name+" — è tra i più richiesti per quello che cerchi.",
+["✦ Prenota con "+top.name.split(" ").slice(-1)[0],"Mostrami solo i top 2","Continuo a guardare"],
+{}
+);
+},2500);
 }
 }
 if(ev.type==="book_click"){
@@ -734,7 +746,7 @@ return(
 </div>
 <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
 <button onClick={function(){onView&&onView(doc);}} style={{padding:"4px 10px",borderRadius:99,background:"rgba(200,169,110,0.15)",border:"1px solid rgba(200,169,110,0.3)",color:"var(--gold)",fontSize:10,fontWeight:600,cursor:"pointer"}}>Profilo</button>
-<button onClick={function(){onBook&&onBook(doc);}} style={{padding:"4px 10px",borderRadius:99,background:"var(--gold)",border:"none",color:"#1a1206",fontSize:10,fontWeight:700,cursor:"pointer"}}>Prenota</button>
+<button onClick={function(){onBook&&onBook(doc<button onClick={function(){onBook&&onBook(doc);}} style={{padding:"5px 12px",borderRadius:99,background:"linear-gradient(135deg,var(--gold),#a07c45)",border:"none",color:"#1a1206",fontSize:10,fontWeight:800,cursor:"pointer",boxShadow:"0 2px 8px rgba(200,169,110,0.3)"}}>✦ Prenota</button>
 </div>
 </div>
 );
@@ -757,6 +769,11 @@ return(
 <p style={{fontSize:9,color:"var(--gold)",fontWeight:700,letterSpacing:"0.05em"}}>LIVE</p>
 </div>
 </div>
+{ctx==="marketplace"&&(
+<p style={{fontSize:11,color:"rgba(245,240,232,0.55)",lineHeight:1.5,marginTop:10}}>
+Ti aiuto a trovare il medico giusto e a prenotare in pochi secondi ✦
+</p>
+)}
 </div>
 {/* Area messaggi */}
 <div ref={ref} style={{flex:1,overflowY:"auto",padding:"14px 12px",display:"flex",flexDirection:"column",gap:10}}>
@@ -805,6 +822,14 @@ style={{padding:"5px 12px",borderRadius:99,border:"1px solid rgba(200,169,110,0.
 </button>
 );
 })}
+</div>
+)}
+{/* {ctx==="marketplace"&&focusDoc&&!loading&&(
+<div className="fade-in" style={{padding:"10px 12px 0",flexShrink:0}}>
+<button onClick={function(){window.gloriaTrack("book_intent",{doc:focusDoc});if(onBook)onBook(focusDoc);}}
+style={{width:"100%",padding:"11px 14px",borderRadius:"var(--radius-lg)",background:"linear-gradient(135deg,var(--gold),#a07c45)",border:"none",color:"#1a1206",fontSize:12,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 4px 16px rgba(200,169,110,0.35)"}}>
+<span>✦ Prenota ora con {focusDoc.name?focusDoc.name.split(" ").slice(-1)[0]:"questo medico"}</span>
+</button>
 </div>
 )}
 {/* Input area */}
@@ -5416,7 +5441,7 @@ onMouseLeave={e=>{if(section!==s.id){e.currentTarget.style.background="transpare
 <Marketplace uiState={uiState} onBook={setBookDoc} onView={function(doc){var slug=doc.id;window._currentDocId=doc.id;window.location.hash="#/medico/"+slug;}}/>
 </main>
 <aside style={{borderLeft:"1px solid var(--border)",overflow:"hidden",display:"flex",flexDirection:"column"}}>
-<Gloria onUpdate={onUiUpdate} ctx="marketplace" doctors={[]}/>
+<Gloria onUpdate={onUiUpdate} ctx="marketplace" doctors={[]} onBook={setBookDoc}/>
 </aside>
 </div>
 ):(
@@ -7283,7 +7308,7 @@ if(["home","info","fordoctors"].includes(page)){
 return <div className="layout">
 <Header user={user} onLogout={logout} nav={setPage} cur={page}/>
 <main className="layout-main"><Marketplace uiState={ui} onBook={setBookDoc} onView={openDoctorPage}/></main>
-<aside className="layout-chat"><Gloria onUpdate={updUi} ctx="marketplace" doctors={[]} /></aside>
+<aside className="layout-chat"><Gloria onUpdate={updUi} ctx="marketplace" doctors={[]} onBook={setBookDoc}/></aside>
 {bookDoc&&<BookModal doc={bookDoc} onClose={()=>setBookDoc(null)} user={user}/>}
 </div>;
 }
