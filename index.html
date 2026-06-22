@@ -460,7 +460,7 @@ style={{flex:1,background:"transparent",border:"none",fontSize:12,color:"var(--t
 </div>
 );
 }
-function Gloria({onUpdate,ctx="marketplace",doctors,onBook}){
+function Gloria({onUpdate,ctx="marketplace",doctors,onBook,uiState}){
 const MSG0={
 marketplace:"Ciao! Sono Gloria ✦\nSono qui per aiutarti a trovare il professionista giusto. Di cosa hai bisogno?",
 doctor:"Ciao! Sono Gloria ✦\nCome posso supportarti nella gestione del tuo studio?",
@@ -682,6 +682,16 @@ var doctorContext=docList.slice(0,10).map(function(d){
 var cityStr=d.city||"Italia";
 return d.name+" | "+d.specialty+" | Citta: "+cityStr+" | Prezzo: EUR"+d.price+" | Servizi: "+d.services.join(", ");
 }).join("\n");
+var currentlyVisible=uiState&&uiState.highlightedDoctorIds&&uiState.highlightedDoctorIds.length>0
+?uiState.highlightedDoctorIds.length
+:null;
+var activeCity=uiState&&uiState.filterCity?uiState.filterCity:null;
+var activeTags=uiState&&uiState.filterTags&&uiState.filterTags.length>0?uiState.filterTags.join(", "):null;
+var stateNote="";
+if(activeCity) stateNote+="Il paziente ha GIA' filtrato per citta': "+activeCity+". Non chiedere di nuovo la citta', e non cambiarla a meno che il paziente non lo richieda esplicitamente.\n";
+if(activeTags) stateNote+="Filtri attivi sul marketplace: "+activeTags+".\n";
+if(currentlyVisible!==null) stateNote+="Il marketplace mostra ATTUALMENTE "+currentlyVisible+" risultato"+(currentlyVisible===1?"":"i")+" visibile"+(currentlyVisible===1?"":"i")+" con i filtri correnti. Se il numero e' molto basso (1-2), NON proporre di restringere ulteriormente per citta'/budget/trattamento: invece presenta direttamente il/i professionista/i disponibile/i e invita alla prenotazione.\n";
+var systemPrompt="Sei Gloria, l'assistente AI di GlowUp, marketplace italiano di medicina estetica. Parli e scrivi ESCLUSIVAMENTE in italiano corretto, senza mai inserire parole o frasi in inglese (es. non scrivere 'located', usa 'situato/a' o 'dove ti trovi'). Il tuo obiettivo e' guidare il paziente verso la prenotazione nel modo piu' rapido e naturale possibile.\n\n"+stateNote+"\nMedici disponibili:\n"+doctorContext+"\n\nRegole:\n- Massimo 2-3 frasi per risposta, niente elenchi lunghi se non strettamente necessario\n- Se il numero di risultati visibili a schermo e' gia' basso, non continuare a fare domande di scrematura: proponi la prenotazione\n- Non inventare medici che non sono nella lista\n- Quando nomini un medico adatto, invita esplicitamente alla prenotazione";
 var history=msgs.concat([newUserMsg]).map(function(m){
 return {role:m.role==="assistant"?"assistant":"user",content:m.content};
 });
@@ -693,7 +703,7 @@ headers:{
 "Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRtanJleml4bGJhcnJ5YWl5aHBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4Mjg5MTYsImV4cCI6MjA5NDQwNDkxNn0.HRQZmod5tXe97GXABDyL8QB_YGL6Tf3nccLpbLblWiE",
 "apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRtanJleml4bGJhcnJ5YWl5aHBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4Mjg5MTYsImV4cCI6MjA5NDQwNDkxNn0.HRQZmod5tXe97GXABDyL8QB_YGL6Tf3nccLpbLblWiE"
 },
-body:JSON.stringify({messages:history,context:doctorContext})
+body:JSON.stringify({messages:history,context:systemPrompt})
 });
 var data=await res.json();
 if(data.error){
@@ -707,12 +717,10 @@ var cityMap={"torino":"Torino","milano":"Milano","roma":"Roma","firenze":"Firenz
 var foundCity=null;
 var userMsg=t.toLowerCase();
 Object.keys(cityMap).forEach(function(k){if(userMsg.includes(k))foundCity=cityMap[k];});
-if(!foundCity) Object.keys(cityMap).forEach(function(k){if(reply.includes(k))foundCity=cityMap[k];});
 if(foundCity) uiUpdate.filterCity=foundCity;
-else uiUpdate.filterCity=null; // reset se non c'è città
 var tagMap={"rinoplastica":["viso","chirurgia"],"botox":["viso","non-invasivo"],"filler":["viso","non-invasivo"],"lifting":["viso","chirurgia"],"liposuzione":["corpo","chirurgia"],"mastoplastica":["seno","chirurgia"],"peeling":["pelle","non-invasivo"],"laser":["laser","non-invasivo"]};
 var foundTags=[];
-Object.keys(tagMap).forEach(function(k){if(reply.includes(k)){tagMap[k].forEach(function(t){if(!foundTags.includes(t))foundTags.push(t);});}});
+Object.keys(tagMap).forEach(function(k){if(userMsg.includes(k)){tagMap[k].forEach(function(t){if(!foundTags.includes(t))foundTags.push(t);});}});
 if(foundTags.length>0) uiUpdate.filterTags=foundTags;
 var mentionedIds=realDoctors.filter(function(d){
 return reply.includes(d.name.toLowerCase().split(" ").slice(-1)[0].toLowerCase());
@@ -725,7 +733,7 @@ setMsgs(function(prev){return [...prev,{role:"assistant",content:"Connessione no
 }
 setLoading(false);
 if(inputRef.current) inputRef.current.focus();
-},[input,loading,onUpdate,msgs]);
+},[input,loading,onUpdate,msgs,uiState,realDoctors]);
 var extractMentionedDoctors=function(text){
 var lo=text.toLowerCase();
 return (realDoctors.length>0?realDoctors:DOCTORS).filter(function(d){
@@ -5441,7 +5449,7 @@ onMouseLeave={e=>{if(section!==s.id){e.currentTarget.style.background="transpare
 <Marketplace uiState={uiState} onBook={setBookDoc} onView={function(doc){var slug=doc.id;window._currentDocId=doc.id;window.location.hash="#/medico/"+slug;}}/>
 </main>
 <aside style={{borderLeft:"1px solid var(--border)",overflow:"hidden",display:"flex",flexDirection:"column"}}>
-<Gloria onUpdate={onUiUpdate} ctx="marketplace" doctors={[]} onBook={setBookDoc}/>
+<Gloria onUpdate={onUiUpdate} ctx="marketplace" doctors={[]} onBook={setBookDoc} uiState={uiState}/>
 </aside>
 </div>
 ):(
@@ -7308,7 +7316,7 @@ if(["home","info","fordoctors"].includes(page)){
 return <div className="layout">
 <Header user={user} onLogout={logout} nav={setPage} cur={page}/>
 <main className="layout-main"><Marketplace uiState={ui} onBook={setBookDoc} onView={openDoctorPage}/></main>
-<aside className="layout-chat"><Gloria onUpdate={updUi} ctx="marketplace" doctors={[]} onBook={setBookDoc}/></aside>
+<aside className="layout-chat"><Gloria onUpdate={updUi} ctx="marketplace" doctors={[]} onBook={setBookDoc} uiState={ui}/></aside>
 {bookDoc&&<BookModal doc={bookDoc} onClose={()=>setBookDoc(null)} user={user}/>}
 </div>;
 }
